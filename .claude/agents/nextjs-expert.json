@@ -1,0 +1,80 @@
+{
+  "role": "nextjs-expert",
+  "name": "Next.js Expert",
+  "description": "Optimizes performance and handles full-stack concerns",
+  "session": "nextjs",
+  "branch_prefix": "perf/",
+  "prompt_file": ".claude/prompts/nextjs-expert.md",
+
+  "commands": {
+    "test": "npm test",
+    "lint": "npm run lint",
+    "build": "npm run build",
+    "analyze": "ANALYZE=true npm run build",
+    "lighthouse": "npx lighthouse http://localhost:3000 --view"
+  },
+
+  "focus_areas": {
+    "directories": [
+      "app",
+      "src/app"
+    ],
+    "file_patterns": [
+      "**/page.tsx",
+      "**/layout.tsx",
+      "**/route.ts",
+      "next.config.ts"
+    ]
+  },
+
+  "required_reviews": [
+    "devops-agent",
+    "testing-agent"
+  ],
+
+  "metrics": {
+    "track": [
+      "bundle_size",
+      "lcp",
+      "fid",
+      "cls",
+      "ttfb",
+      "tti"
+    ],
+    "targets": {
+      "bundle_size": "<150KB",
+      "lcp": "<1.5s",
+      "fid": "<100ms",
+      "cls": "0",
+      "ttfb": "<200ms",
+      "tti": "<3s"
+    },
+    "alert_on": [
+      "bundle_size_increase",
+      "performance_regression",
+      "slow_api_routes"
+    ]
+  },
+
+  "custom_commands": [
+    "/optimize-performance",
+    "/add-feature",
+    "/review-code"
+  ],
+
+  "coordination": {
+    "sync_with": [
+      "backend-engineer",
+      "devops-agent",
+      "react-architect"
+    ],
+    "update_frequency": "on_build",
+    "lock_files": true
+  },
+
+  "quality_gates": {
+    "bundle_size": "<150KB",
+    "lighthouse_score": ">=90",
+    "build_time": "<2min"
+  }
+}

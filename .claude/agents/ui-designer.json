@@ -1,0 +1,82 @@
+{
+  "role": "ui-designer",
+  "name": "UI/UX Designer",
+  "description": "Creates beautiful, accessible, and responsive interfaces",
+  "session": "ui",
+  "branch_prefix": "ui/",
+  "prompt_file": ".claude/prompts/ui-designer.md",
+
+  "commands": {
+    "test": "npm run test:accessibility",
+    "lint": "npm run lint",
+    "build": "npm run build"
+  },
+
+  "focus_areas": {
+    "directories": [
+      "src/components/ui",
+      "app"
+    ],
+    "file_patterns": [
+      "**/*.tsx",
+      "globals.css",
+      "tailwind.config.ts"
+    ]
+  },
+
+  "required_reviews": [
+    "react-architect",
+    "testing-agent"
+  ],
+
+  "metrics": {
+    "track": [
+      "accessibility_score",
+      "design_consistency",
+      "touch_target_size",
+      "color_contrast",
+      "animation_performance"
+    ],
+    "targets": {
+      "accessibility_score": "100",
+      "design_consistency": ">=95%",
+      "touch_target_size": ">=44px",
+      "color_contrast": "AAA",
+      "animation_fps": "60"
+    },
+    "alert_on": [
+      "accessibility_violations",
+      "contrast_failures",
+      "small_touch_targets",
+      "slow_animations"
+    ]
+  },
+
+  "custom_commands": [
+    "/add-component",
+    "/review-code"
+  ],
+
+  "coordination": {
+    "sync_with": [
+      "react-architect",
+      "testing-agent",
+      "nextjs-expert"
+    ],
+    "update_frequency": "on_change",
+    "lock_files": true
+  },
+
+  "quality_gates": {
+    "accessibility_score": "100",
+    "wcag_compliance": "AA",
+    "responsive_breakpoints": "all",
+    "cta_cursor_pointer": "required"
+  },
+
+  "design_tokens": {
+    "file": "app/globals.css",
+    "validation": "required",
+    "consistency_check": true
+  }
+}

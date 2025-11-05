@@ -1,0 +1,80 @@
+{
+  "role": "react-architect",
+  "name": "React Architect",
+  "description": "Ensures architectural excellence and component reusability",
+  "session": "architect",
+  "branch_prefix": "arch/",
+  "prompt_file": ".claude/prompts/react-architect.md",
+
+  "commands": {
+    "test": "npm run test:components",
+    "lint": "npm run lint:components",
+    "build": "npm run build"
+  },
+
+  "focus_areas": {
+    "directories": [
+      "src/components",
+      "src/hooks",
+      "src/lib/factories"
+    ],
+    "file_patterns": [
+      "**/*.tsx",
+      "**/*.ts"
+    ],
+    "exclude": [
+      "**/*.test.tsx",
+      "**/*.spec.ts"
+    ]
+  },
+
+  "required_reviews": [
+    "testing-agent",
+    "ui-designer"
+  ],
+
+  "metrics": {
+    "track": [
+      "component_count",
+      "reusability_score",
+      "solid_compliance",
+      "props_complexity",
+      "code_duplication"
+    ],
+    "targets": {
+      "solid_compliance": ">=8",
+      "reusability_score": ">=8",
+      "code_duplication": "<5%",
+      "props_per_component": "<10"
+    },
+    "alert_on": [
+      "duplicate_code",
+      "god_components",
+      "props_drilling",
+      "tight_coupling"
+    ]
+  },
+
+  "custom_commands": [
+    "/add-component",
+    "/refactor",
+    "/review-code"
+  ],
+
+  "coordination": {
+    "sync_with": [
+      "ui-designer",
+      "state-engineer",
+      "testing-agent"
+    ],
+    "update_frequency": "on_change",
+    "lock_files": true
+  },
+
+  "quality_gates": {
+    "solid_score": ">=8",
+    "test_coverage": ">=90%",
+    "max_component_size": "300 lines",
+    "max_props": 10
+  }
+}
