@@ -76,6 +76,23 @@ export interface OAuthConnection {
   updated_at: string
 }
 
+export interface AvailabilityPattern {
+  id: string
+  admin_id: string
+  title: string
+  description?: string
+  duration_minutes: number
+  price?: number
+  meeting_type?: MeetingType
+  meeting_config?: MeetingConfig
+  start_date: string
+  end_date?: string
+  weekly_schedule: Record<string, Array<{ start: string; end: string }>>
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 // Extended types with relationships
 export interface BookingWithRelations extends Booking {
   member?: User

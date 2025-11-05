@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Clock, Trash2, Edit2, Calendar } from 'lucide-react'
+import { Plus, Clock, Trash2, Edit2, Calendar, DollarSign } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { AvailabilitySlot, User } from '@/lib/types/database'
+import { AvailabilityPattern, User } from '@/lib/types/database'
 import { format } from 'date-fns'
 import CreateSlotDrawer from '../modals/CreateSlotDrawer'
 
@@ -13,7 +13,7 @@ interface AvailabilityTabProps {
 
 export default function AvailabilityTab({ roleOverride }: AvailabilityTabProps) {
   const [user, setUser] = useState<User | null>(null)
-  const [slots, setSlots] = useState<AvailabilitySlot[]>([])
+  const [patterns, setPatterns] = useState<AvailabilityPattern[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const supabase = createClient()
@@ -56,27 +56,27 @@ export default function AvailabilityTab({ roleOverride }: AvailabilityTabProps) 
 
       setUser(userData)
 
-      // Load availability slots based on role
+      // Load availability patterns based on role
       const effectiveRole = roleOverride || userData?.role || 'admin'
 
       if (effectiveRole === 'admin') {
-        // Admins see their own slots
-        const { data: slotsData } = await supabase
-          .from('availability_slots')
+        // Admins see their own patterns
+        const { data: patternsData } = await supabase
+          .from('availability_patterns')
           .select('*')
           .eq('admin_id', userId)
-          .order('start_time', { ascending: true })
+          .order('created_at', { ascending: false })
 
-        setSlots(slotsData || [])
+        setPatterns(patternsData || [])
       } else {
-        // Members see all available slots
-        const { data: slotsData } = await supabase
-          .from('availability_slots')
+        // Members see all active patterns
+        const { data: patternsData } = await supabase
+          .from('availability_patterns')
           .select('*')
-          .eq('is_available', true)
-          .order('start_time', { ascending: true })
+          .eq('is_active', true)
+          .order('created_at', { ascending: false })
 
-        setSlots(slotsData || [])
+        setPatterns(patternsData || [])
       }
     } catch (error) {
       console.error('Error loading data:', error)
@@ -85,23 +85,36 @@ export default function AvailabilityTab({ roleOverride }: AvailabilityTabProps) 
     }
   }
 
-  async function deleteSlot(slotId: string) {
-    if (!confirm('Are you sure you want to delete this time slot?')) {
+  async function deletePattern(patternId: string) {
+    if (!confirm('Are you sure you want to delete this availability pattern?')) {
       return
     }
 
     try {
       const { error } = await supabase
-        .from('availability_slots')
+        .from('availability_patterns')
         .delete()
-        .eq('id', slotId)
+        .eq('id', patternId)
 
       if (!error) {
         loadUserAndSlots()
       }
     } catch (error) {
-      console.error('Error deleting slot:', error)
+      console.error('Error deleting pattern:', error)
     }
+  }
+
+  function formatDaySchedule(weeklySchedule: Record<string, Array<{ start: string; end: string }>>) {
+    const dayOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+    const enabledDays = dayOrder.filter(day => weeklySchedule[day] && weeklySchedule[day].length > 0)
+
+    if (enabledDays.length === 0) return 'No schedule set'
+
+    return enabledDays.map(day => {
+      const ranges = weeklySchedule[day]
+      const timeRanges = ranges.map(r => `${r.start}-${r.end}`).join(', ')
+      return `${day}: ${timeRanges}`
+    }).join(' • ')
   }
 
   if (loading) {
@@ -147,8 +160,8 @@ export default function AvailabilityTab({ roleOverride }: AvailabilityTabProps) 
         </div>
       </div>
 
-      {/* Slots List */}
-      {slots.length === 0 ? (
+      {/* Patterns List */}
+      {patterns.length === 0 ? (
         <div className="relative overflow-hidden rounded-2xl border border-zinc-700/50 bg-zinc-800/30 backdrop-blur-sm">
           <div className="absolute inset-0 bg-gradient-to-br from-zinc-800/50 to-zinc-900/50"></div>
           <div className="relative text-center py-20 px-6">
@@ -156,12 +169,12 @@ export default function AvailabilityTab({ roleOverride }: AvailabilityTabProps) 
               <Clock className="w-16 h-16 text-zinc-600" />
             </div>
             <h3 className="text-2xl font-semibold text-white mb-2">
-              {isAdmin ? 'No availability slots yet' : 'No slots available'}
+              {isAdmin ? 'No availability patterns yet' : 'No availability patterns'}
             </h3>
             <p className="text-zinc-400 text-lg max-w-md mx-auto">
               {isAdmin
-                ? 'Create your first time slot to start accepting bookings'
-                : 'Check back later for available time slots'}
+                ? 'Create your first availability pattern to start accepting bookings'
+                : 'Check back later for available booking slots'}
             </p>
             {isAdmin && (
               <button
@@ -169,19 +182,18 @@ export default function AvailabilityTab({ roleOverride }: AvailabilityTabProps) 
                 className="mt-8 px-6 py-3 bg-ruby-500 hover:bg-ruby-600 text-white rounded-xl font-semibold inline-flex items-center gap-2 transition-colors"
               >
                 <Plus className="w-5 h-5" />
-                Create First Slot
+                Create Availability
               </button>
             )}
           </div>
         </div>
       ) : (
         <div className="grid gap-4">
-          {slots.map((slot) => (
+          {patterns.map((pattern) => (
             <div
-              key={slot.id}
+              key={pattern.id}
               className="group relative overflow-hidden rounded-2xl border border-zinc-700/50 bg-zinc-800/50 hover:bg-zinc-800 hover:border-ruby-500/50 transition-colors"
             >
-
               <div className="relative p-6">
                 <div className="flex items-start justify-between gap-6">
                   <div className="flex-1 min-w-0">
@@ -192,38 +204,66 @@ export default function AvailabilityTab({ roleOverride }: AvailabilityTabProps) 
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="text-xl font-semibold text-white mb-1">
-                          {slot.title || 'Available Time Slot'}
+                          {pattern.title}
                         </h3>
-                        {slot.description && (
-                          <p className="text-zinc-400 text-sm line-clamp-2">{slot.description}</p>
+                        {pattern.description && (
+                          <p className="text-zinc-400 text-sm line-clamp-2">{pattern.description}</p>
                         )}
                       </div>
                     </div>
 
-                    {/* Time Details */}
-                    <div className="flex flex-wrap items-center gap-4 mb-4">
-                      <div className="flex items-center gap-2 px-4 py-2 bg-zinc-900/50 rounded-lg border border-zinc-700/50">
+                    {/* Pattern Details */}
+                    <div className="space-y-3 mb-4">
+                      {/* Duration and Price */}
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-zinc-900/50 rounded-lg border border-zinc-700/50">
+                          <Clock className="w-4 h-4 text-zinc-400" />
+                          <span className="text-zinc-200 text-sm font-medium">
+                            {pattern.duration_minutes} min
+                          </span>
+                        </div>
+                        {pattern.price !== undefined && pattern.price > 0 && (
+                          <div className="flex items-center gap-2 px-3 py-1.5 bg-zinc-900/50 rounded-lg border border-zinc-700/50">
+                            <DollarSign className="w-4 h-4 text-zinc-400" />
+                            <span className="text-zinc-200 text-sm font-medium">
+                              ${pattern.price}
+                            </span>
+                          </div>
+                        )}
+                        {pattern.meeting_type && (
+                          <div className="px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                            <span className="text-blue-300 text-sm font-medium capitalize">
+                              {pattern.meeting_type.replace('_', ' ')}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Date Range */}
+                      <div className="flex items-center gap-2 px-3 py-2 bg-zinc-900/50 rounded-lg border border-zinc-700/50">
                         <Calendar className="w-4 h-4 text-zinc-400" />
-                        <span className="text-zinc-200 font-medium">
-                          {format(new Date(slot.start_time), 'EEE, MMM d, yyyy')}
+                        <span className="text-zinc-200 text-sm">
+                          {format(new Date(pattern.start_date), 'MMM d, yyyy')}
+                          {pattern.end_date ? ` - ${format(new Date(pattern.end_date), 'MMM d, yyyy')}` : ' - Indefinite'}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 px-4 py-2 bg-zinc-900/50 rounded-lg border border-zinc-700/50">
-                        <Clock className="w-4 h-4 text-zinc-400" />
-                        <span className="text-zinc-200 font-medium">
-                          {format(new Date(slot.start_time), 'h:mm a')} - {format(new Date(slot.end_time), 'h:mm a')}
-                        </span>
+
+                      {/* Weekly Schedule */}
+                      <div className="px-3 py-2 bg-zinc-900/50 rounded-lg border border-zinc-700/50">
+                        <p className="text-zinc-200 text-sm">
+                          {formatDaySchedule(pattern.weekly_schedule)}
+                        </p>
                       </div>
                     </div>
 
                     {/* Status Badge */}
                     <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium border ${
-                      slot.is_available
+                      pattern.is_active
                         ? 'bg-ruby-500/10 border-ruby-500/30 text-ruby-400'
                         : 'bg-zinc-700/50 border-zinc-600 text-zinc-400'
                     }`}>
-                      <span className={`w-2 h-2 rounded-full ${slot.is_available ? 'bg-ruby-400' : 'bg-zinc-500'}`}></span>
-                      {slot.is_available ? 'Available' : 'Booked'}
+                      <span className={`w-2 h-2 rounded-full ${pattern.is_active ? 'bg-ruby-400' : 'bg-zinc-500'}`}></span>
+                      {pattern.is_active ? 'Active' : 'Inactive'}
                     </div>
                   </div>
 
@@ -234,16 +274,16 @@ export default function AvailabilityTab({ roleOverride }: AvailabilityTabProps) 
                         <Edit2 className="w-5 h-5 text-zinc-400 group-hover/btn:text-white transition-colors" />
                       </button>
                       <button
-                        onClick={() => deleteSlot(slot.id)}
+                        onClick={() => deletePattern(pattern.id)}
                         className="p-3 hover:bg-red-500/10 rounded-lg transition-colors group/btn border border-transparent hover:border-red-500/30"
                       >
                         <Trash2 className="w-5 h-5 text-zinc-400 group-hover/btn:text-red-400 transition-colors" />
                       </button>
                     </div>
                   ) : (
-                    slot.is_available && (
+                    pattern.is_active && (
                       <button className="px-6 py-3 bg-ruby-500 hover:bg-ruby-600 text-white rounded-xl font-semibold transition-colors">
-                        Book Now
+                        View Slots
                       </button>
                     )
                   )}
