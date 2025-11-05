@@ -108,7 +108,7 @@ export default function AvailabilityTab({ roleOverride }: AvailabilityTabProps) 
     return (
       <div className="flex items-center justify-center py-20">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin"></div>
+          <div className="w-12 h-12 border-4 border-ruby-500/30 border-t-ruby-500 rounded-full animate-spin"></div>
           <p className="text-zinc-400 text-sm">Loading availability...</p>
         </div>
       </div>
@@ -120,12 +120,12 @@ export default function AvailabilityTab({ roleOverride }: AvailabilityTabProps) 
   return (
     <div className="space-y-8">
       {/* Header with gradient */}
-      <div className="rounded-2xl bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/20 p-8">
+      <div className="rounded-2xl bg-gradient-to-br from-ruby-500/10 via-ruby-500/5 to-transparent border border-ruby-500/20 p-8">
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-emerald-500/10 rounded-lg">
-                <Clock className="w-6 h-6 text-emerald-400" />
+              <div className="p-2 bg-ruby-500/10 rounded-lg">
+                <Clock className="w-6 h-6 text-ruby-400" />
               </div>
               <h2 className="text-3xl font-bold text-white">Availability</h2>
             </div>
@@ -138,7 +138,7 @@ export default function AvailabilityTab({ roleOverride }: AvailabilityTabProps) 
           {isAdmin && (
             <button
               onClick={() => setIsModalOpen(true)}
-              className="px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-semibold flex items-center gap-2 transition-colors"
+              className="px-6 py-3 bg-ruby-500 hover:bg-ruby-600 text-white rounded-xl font-semibold flex items-center gap-2 transition-colors"
             >
               <Plus className="w-5 h-5" />
               Add Time Slot
@@ -166,7 +166,7 @@ export default function AvailabilityTab({ roleOverride }: AvailabilityTabProps) 
             {isAdmin && (
               <button
                 onClick={() => setIsModalOpen(true)}
-                className="mt-8 px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-semibold inline-flex items-center gap-2 transition-colors"
+                className="mt-8 px-6 py-3 bg-ruby-500 hover:bg-ruby-600 text-white rounded-xl font-semibold inline-flex items-center gap-2 transition-colors"
               >
                 <Plus className="w-5 h-5" />
                 Create First Slot
@@ -179,7 +179,7 @@ export default function AvailabilityTab({ roleOverride }: AvailabilityTabProps) 
           {slots.map((slot) => (
             <div
               key={slot.id}
-              className="group relative overflow-hidden rounded-2xl border border-zinc-700/50 bg-zinc-800/50 hover:bg-zinc-800 hover:border-emerald-500/50 transition-colors"
+              className="group relative overflow-hidden rounded-2xl border border-zinc-700/50 bg-zinc-800/50 hover:bg-zinc-800 hover:border-ruby-500/50 transition-colors"
             >
 
               <div className="relative p-6">
@@ -187,8 +187,8 @@ export default function AvailabilityTab({ roleOverride }: AvailabilityTabProps) 
                   <div className="flex-1 min-w-0">
                     {/* Title and Icon */}
                     <div className="flex items-start gap-4 mb-4">
-                      <div className="flex-shrink-0 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                        <Clock className="w-6 h-6 text-emerald-400" />
+                      <div className="flex-shrink-0 p-3 bg-ruby-500/10 border border-ruby-500/20 rounded-xl">
+                        <Clock className="w-6 h-6 text-ruby-400" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="text-xl font-semibold text-white mb-1">
@@ -219,10 +219,10 @@ export default function AvailabilityTab({ roleOverride }: AvailabilityTabProps) 
                     {/* Status Badge */}
                     <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium border ${
                       slot.is_available
-                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                        ? 'bg-ruby-500/10 border-ruby-500/30 text-ruby-400'
                         : 'bg-zinc-700/50 border-zinc-600 text-zinc-400'
                     }`}>
-                      <span className={`w-2 h-2 rounded-full ${slot.is_available ? 'bg-emerald-400' : 'bg-zinc-500'}`}></span>
+                      <span className={`w-2 h-2 rounded-full ${slot.is_available ? 'bg-ruby-400' : 'bg-zinc-500'}`}></span>
                       {slot.is_available ? 'Available' : 'Booked'}
                     </div>
                   </div>
@@ -242,7 +242,7 @@ export default function AvailabilityTab({ roleOverride }: AvailabilityTabProps) 
                     </div>
                   ) : (
                     slot.is_available && (
-                      <button className="px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-semibold transition-colors">
+                      <button className="px-6 py-3 bg-ruby-500 hover:bg-ruby-600 text-white rounded-xl font-semibold transition-colors">
                         Book Now
                       </button>
                     )

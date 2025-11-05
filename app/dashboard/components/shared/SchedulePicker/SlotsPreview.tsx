@@ -81,9 +81,9 @@ export default function SlotsPreview({
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           {mode === 'recurring' ? (
-            <Repeat className="w-5 h-5 text-emerald-400" />
+            <Repeat className="w-5 h-5 text-ruby-400" />
           ) : (
-            <Calendar className="w-5 h-5 text-emerald-400" />
+            <Calendar className="w-5 h-5 text-ruby-400" />
           )}
           <h3 className="text-sm font-semibold text-white">
             Selected Slots ({totalSlots})
@@ -102,15 +102,15 @@ export default function SlotsPreview({
           {mode === 'recurring' && recurringSlots.map((slot, index) => (
             <div
               key={`${slot.day}-${slot.time}-${index}`}
-              className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 rounded-md text-sm"
+              className="inline-flex items-center gap-2 px-3 py-1.5 bg-ruby-500/10 border border-ruby-500/30 rounded-md text-sm"
             >
-              <span className="text-emerald-400 font-medium">
+              <span className="text-ruby-400 font-medium">
                 {DAY_LABELS[slot.day]?.slice(0, 3)} {formatTime(slot.time)}
               </span>
               <button
                 type="button"
                 onClick={() => onRemoveRecurringSlot?.(slot.day, slot.time)}
-                className="hover:text-emerald-300 text-emerald-500"
+                className="hover:text-ruby-300 text-ruby-500"
               >
                 <X className="w-3.5 h-3.5" />
               </button>

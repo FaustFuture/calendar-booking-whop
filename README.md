@@ -11,7 +11,7 @@ A modern calendar booking application built with Next.js 16, React 19, TypeScrip
   - **Past**: Browse booking history (completed/cancelled)
   - **Recordings**: Upload and access session recordings
 - **Real-Time Data**: Powered by Supabase with Row Level Security
-- **Modern UI**: Dark theme with emerald accents, smooth animations
+- **Modern UI**: Dark theme with ruby accents, smooth animations
 
 ## Tech Stack
 
@@ -150,7 +150,7 @@ calendar-app/
 ## Design System
 
 - **Dark Theme**: Sophisticated Zinc palette (background: #18181b, cards: #27272a)
-- **Primary Color**: Emerald green (#10b981)
+- **Primary Color**: Ruby (#f43f5e)
 - **Tailwind CSS 4**: CSS-first configuration with design tokens
 - **Typography**: Modular scale with system fonts
 - **Components**: Reusable button variants, card styles, and input components

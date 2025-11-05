@@ -153,7 +153,7 @@ export default function UpcomingTab({ roleOverride }: UpcomingTabProps) {
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-3">
-                    <Calendar className="w-5 h-5 text-emerald-400" />
+                    <Calendar className="w-5 h-5 text-ruby-400" />
                     <h3 className="text-lg font-semibold text-white">
                       {booking.title}
                     </h3>
@@ -196,7 +196,7 @@ export default function UpcomingTab({ roleOverride }: UpcomingTabProps) {
                       href={booking.meeting_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 text-emerald-400 hover:text-emerald-300 text-sm"
+                      className="inline-flex items-center gap-2 text-ruby-400 hover:text-ruby-300 text-sm"
                     >
                       <ExternalLink className="w-4 h-4" />
                       Join Meeting

@@ -16,16 +16,16 @@
   --color-card: #27272a;
   --color-card-hover: #3f3f46;
 
-  /* Primary brand color (Emerald) */
-  --color-primary: #10b981;
-  --color-primary-hover: #059669;
-  --color-primary-light: #34d399;
-  --color-primary-dark: #047857;
+  /* Primary brand color (Ruby) */
+  --color-primary: #f43f5e;
+  --color-primary-hover: #e11d48;
+  --color-primary-light: #fb7185;
+  --color-primary-dark: #be123c;
 
   /* Semantic colors - Accessible contrast */
-  --color-success: #10b981;
-  --color-success-light: #34d399;
-  --color-success-dark: #047857;
+  --color-success: #f43f5e;
+  --color-success-light: #fb7185;
+  --color-success-dark: #be123c;
 
   --color-warning: #f59e0b;
   --color-warning-light: #fbbf24;
@@ -58,11 +58,11 @@
   --color-zinc-900: #18181b;
   --color-zinc-950: #09090b;
 
-  /* Emerald scale */
-  --color-emerald-400: #34d399;
-  --color-emerald-500: #10b981;
-  --color-emerald-600: #059669;
-  --color-emerald-700: #047857;
+  /* Ruby scale */
+  --color-ruby-400: #fb7185;
+  --color-ruby-500: #f43f5e;
+  --color-ruby-600: #e11d48;
+  --color-ruby-700: #be123c;
 
   /* ========================================================================
      Typography System
@@ -215,8 +215,8 @@
 @layer components {
   /* Button variants */
   .btn-primary {
-    @apply px-4 py-2 bg-emerald-500 text-white rounded-lg
-           hover:bg-emerald-600 transition-colors font-semibold
+    @apply px-4 py-2 bg-ruby-500 text-white rounded-lg
+           hover:bg-ruby-600 transition-colors font-semibold
            cursor-pointer active:scale-95;
   }
 
@@ -238,14 +238,14 @@
 
   .card-hover {
     @apply bg-zinc-900 rounded-lg border border-zinc-700
-           hover:border-emerald-500 hover:bg-zinc-800/50
+           hover:border-ruby-500 hover:bg-zinc-800/50
            transition-all cursor-pointer;
   }
 
   /* Input styles */
   .input {
     @apply w-full bg-zinc-900 text-white px-4 py-3 rounded-lg
-           border border-zinc-700 focus:border-emerald-500
+           border border-zinc-700 focus:border-ruby-500
            focus:outline-none transition-colors;
   }
 }

@@ -7,7 +7,8 @@ import { Drawer, DrawerHeader, DrawerContent, DrawerFooter } from '../shared/Dra
 import WizardStepper from '../shared/WizardStepper'
 import SegmentedControl, { SegmentOption } from '../shared/SegmentedControl'
 import ConditionalSelect, { MeetingType } from '../shared/ConditionalSelect'
-import SchedulePicker, { ScheduleData } from '../shared/SchedulePicker/SchedulePicker'
+import SimplifiedSchedulePicker, { SimplifiedScheduleData } from '../shared/SchedulePicker/SimplifiedSchedulePicker'
+import SlotsPreviewCount from '../shared/SchedulePicker/SlotsPreviewCount'
 import SkeletonLoader from '../shared/SkeletonLoader'
 
 interface CreateSlotDrawerProps {
@@ -52,16 +53,13 @@ export default function CreateSlotDrawer({
   const [meetingType, setMeetingType] = useState<MeetingType>('google_meet')
   const [meetingValue, setMeetingValue] = useState('')
   const [connectedEmail, setConnectedEmail] = useState('')
-  const [scheduleData, setScheduleData] = useState<ScheduleData>({
-    mode: 'recurring',
+  const [scheduleData, setScheduleData] = useState<SimplifiedScheduleData>({
+    days: {},
     dateRange: {
       start: new Date(),
-      end: null,
-      indefinite: true,
+      end: new Date(Date.now() + 28 * 24 * 60 * 60 * 1000), // Default 4 weeks
+      indefinite: false,
     },
-    recurringDays: [],
-    recurringTimes: [],
-    specificDates: [],
   })
 
   // Validation errors
@@ -135,31 +133,30 @@ export default function CreateSlotDrawer({
   function validateStep2(): boolean {
     const newErrors: Record<string, string> = {}
 
-    if (scheduleData.mode === 'recurring') {
-      if (scheduleData.recurringDays.length === 0 || scheduleData.recurringTimes.length === 0) {
-        newErrors.schedule = 'Please select at least one day and one time slot'
-      }
-    } else {
-      const hasValidDates = scheduleData.specificDates.length > 0 &&
-        scheduleData.specificDates.some(d => d.times.length > 0)
-      if (!hasValidDates) {
-        newErrors.schedule = 'Please add at least one date with time slots'
-      }
+    // Check if at least one day is enabled
+    const hasEnabledDays = Object.values(scheduleData.days).some(day => day.enabled)
+    if (!hasEnabledDays) {
+      newErrors.schedule = 'Please select at least one day with time range'
     }
 
-    // Validate date range if not indefinite
-    if (!scheduleData.dateRange.indefinite) {
-      if (!scheduleData.dateRange.start) {
-        newErrors.dateRange = 'Please select a start date'
+    // Validate time ranges for enabled days
+    Object.entries(scheduleData.days).forEach(([dayKey, daySchedule]) => {
+      if (daySchedule.enabled) {
+        if (!daySchedule.timeRanges || daySchedule.timeRanges.length === 0) {
+          newErrors.schedule = 'Please add at least one time range for all selected days'
+        } else {
+          // Check each time range
+          daySchedule.timeRanges.forEach(range => {
+            if (!range.startTime || !range.endTime) {
+              newErrors.schedule = 'Please set start and end times for all time ranges'
+            }
+            if (range.startTime >= range.endTime) {
+              newErrors.schedule = 'End time must be after start time for all time ranges'
+            }
+          })
+        }
       }
-      if (!scheduleData.dateRange.end) {
-        newErrors.dateRange = 'Please select an end date'
-      }
-      if (scheduleData.dateRange.start && scheduleData.dateRange.end &&
-          scheduleData.dateRange.start > scheduleData.dateRange.end) {
-        newErrors.dateRange = 'End date must be after start date'
-      }
-    }
+    })
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -188,112 +185,44 @@ export default function CreateSlotDrawer({
 
     setSubmitting(true)
     try {
-      // Calculate final duration
-      const finalDuration = duration === 'custom' ? parseInt(customDuration) : parseInt(duration)
+      // Calculate final values
+      const durationMinutes = duration === 'custom' ? parseInt(customDuration) : parseInt(duration)
 
       // Calculate final price
-      let finalPrice = 0
-      if (price !== 'free') {
-        finalPrice = price === 'custom' ? parseFloat(customPrice) : parseFloat(price)
+      const finalPrice = price === 'free' ? 0 : (price === 'custom' ? parseFloat(customPrice) : parseFloat(price))
+
+      // Prepare common data
+      const commonData = {
+        title,
+        description: description || null,
+        duration_minutes: durationMinutes,
+        price: finalPrice,
+        meeting_type: meetingType,
+        meeting_config: {
+          requiresGeneration: meetingType === 'google_meet' || meetingType === 'zoom',
+          manualValue: meetingValue || null,
+        },
       }
 
-      // Determine meeting link
-      let finalMeetingLink = ''
-      if (meetingType === 'google_meet') {
-        finalMeetingLink = 'GOOGLE_MEET_AUTO' // Placeholder for auto-generation
-      } else if (meetingType === 'zoom') {
-        finalMeetingLink = 'ZOOM_AUTO' // Placeholder for auto-generation
-      } else {
-        finalMeetingLink = meetingValue
+      // Use patterns API endpoint
+      const response = await fetch('/api/availability/patterns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commonData, scheduleData, adminId }),
+      })
+
+      const result = await response.json()
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to create availability pattern')
       }
-
-      const slotsToCreate: any[] = []
-
-      if (scheduleData.mode === 'recurring') {
-        // Generate slots for recurring schedule
-        const dayMap: Record<string, number> = {
-          Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6
-        }
-
-        // Calculate date range
-        const startDate = scheduleData.dateRange.start || new Date()
-        const endDate = scheduleData.dateRange.indefinite
-          ? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) // Default 90 days
-          : scheduleData.dateRange.end!
-
-        // Generate slots for each day/time combination within the range
-        const currentDate = new Date(startDate)
-        while (currentDate <= endDate) {
-          const dayName = Object.keys(dayMap).find(
-            key => dayMap[key] === currentDate.getDay()
-          )
-
-          if (dayName && scheduleData.recurringDays.includes(dayName)) {
-            // Create slots for each selected time on this day
-            scheduleData.recurringTimes.forEach(time => {
-              const [hour, minute] = time.split(':').map(Number)
-              const slotDate = new Date(currentDate)
-              slotDate.setHours(hour, minute, 0, 0)
-
-              const endSlotDate = new Date(slotDate)
-              endSlotDate.setMinutes(endSlotDate.getMinutes() + finalDuration)
-
-              slotsToCreate.push({
-                admin_id: adminId,
-                title,
-                description: description || null,
-                start_time: slotDate.toISOString(),
-                end_time: endSlotDate.toISOString(),
-                is_available: true,
-              })
-            })
-          }
-
-          // Move to next day
-          currentDate.setDate(currentDate.getDate() + 1)
-        }
-      } else {
-        // Generate slots for specific dates
-        scheduleData.specificDates.forEach(dateItem => {
-          dateItem.times.forEach(time => {
-            const [hour, minute] = time.split(':').map(Number)
-            const slotDate = new Date(dateItem.date + 'T00:00:00')
-            slotDate.setHours(hour, minute, 0, 0)
-
-            const endSlotDate = new Date(slotDate)
-            endSlotDate.setMinutes(endSlotDate.getMinutes() + finalDuration)
-
-            slotsToCreate.push({
-              admin_id: adminId,
-              title,
-              description: description || null,
-              start_time: slotDate.toISOString(),
-              end_time: endSlotDate.toISOString(),
-              is_available: true,
-            })
-          })
-        })
-      }
-
-      if (slotsToCreate.length === 0) {
-        alert('No slots to create. Please check your schedule selection.')
-        return
-      }
-
-      // Insert all slots
-      const { error } = await supabase
-        .from('availability_slots')
-        .insert(slotsToCreate)
-
-      if (error) throw error
 
       // Reset form
       resetForm()
       onSuccess()
       onClose()
     } catch (error) {
-      console.error('Error creating time slots:', error)
-      alert('Failed to create time slots. Please try again.')
+      console.error('Error creating availability pattern:', error)
+      alert('Failed to create availability pattern. Please try again.')
     } finally {
       setSubmitting(false)
     }
@@ -310,23 +239,20 @@ export default function CreateSlotDrawer({
     setMeetingType('google_meet')
     setMeetingValue('')
     setScheduleData({
-      mode: 'recurring',
+      days: {},
       dateRange: {
         start: new Date(),
-        end: null,
-        indefinite: true,
+        end: new Date(Date.now() + 28 * 24 * 60 * 60 * 1000), // Default 4 weeks
+        indefinite: false,
       },
-      recurringDays: [],
-      recurringTimes: [],
-      specificDates: [],
     })
     setErrors({})
   }
 
   function handleClose() {
-    const hasScheduleData = scheduleData.recurringDays.length > 0 ||
-      scheduleData.recurringTimes.length > 0 ||
-      scheduleData.specificDates.length > 0
+    const hasScheduleData = Object.values(scheduleData.days).some(
+      day => day.enabled && day.timeRanges && day.timeRanges.length > 0
+    )
 
     if (currentStep > 1 || title || description || hasScheduleData) {
       if (confirm('Are you sure you want to close? Your progress will be lost.')) {
@@ -341,7 +267,7 @@ export default function CreateSlotDrawer({
   return (
     <Drawer open={isOpen} onClose={handleClose} width="lg">
       {/* Header with Stepper */}
-      <DrawerHeader title="Create Time Slot" onClose={handleClose}>
+      <DrawerHeader title="Create Availability" onClose={handleClose}>
         <div className="flex items-center gap-2">
           {steps.map((step, index) => {
             const stepNumber = index + 1
@@ -355,8 +281,8 @@ export default function CreateSlotDrawer({
                     className={`
                       w-8 h-8 rounded-full flex items-center justify-center
                       text-sm font-semibold transition-all
-                      ${isCompleted ? 'bg-emerald-500 text-white' : ''}
-                      ${isActive ? 'bg-emerald-500 text-white' : ''}
+                      ${isCompleted ? 'bg-ruby-500 text-white' : ''}
+                      ${isActive ? 'bg-ruby-500 text-white' : ''}
                       ${!isCompleted && !isActive ? 'bg-zinc-800 text-zinc-500' : ''}
                     `}
                   >
@@ -365,7 +291,7 @@ export default function CreateSlotDrawer({
                   <span
                     className={`
                       text-xs font-medium
-                      ${isActive ? 'text-emerald-400' : ''}
+                      ${isActive ? 'text-ruby-400' : ''}
                       ${isCompleted ? 'text-zinc-300' : ''}
                       ${!isCompleted && !isActive ? 'text-zinc-500' : ''}
                     `}
@@ -379,7 +305,7 @@ export default function CreateSlotDrawer({
                     <div
                       className={`
                         h-full transition-all duration-300
-                        ${stepNumber < currentStep ? 'bg-emerald-500' : 'bg-zinc-700'}
+                        ${stepNumber < currentStep ? 'bg-ruby-500' : 'bg-zinc-700'}
                       `}
                     />
                   </div>
@@ -405,7 +331,7 @@ export default function CreateSlotDrawer({
                   <div className="flex-1">
                     <span className="text-sm text-zinc-300">{connectedEmail}</span>
                   </div>
-                  <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 text-xs font-medium rounded-full">
+                  <span className="px-3 py-1 bg-ruby-500/20 text-ruby-400 text-xs font-medium rounded-full">
                     HOST
                   </span>
                 </div>
@@ -508,14 +434,20 @@ export default function CreateSlotDrawer({
                     Select Your Availability
                   </h3>
                   <p className="text-sm text-zinc-400 mb-4">
-                    Choose when you're available for bookings - select recurring weekly patterns or specific dates
+                    Check the days you're available and set your time range for each day
                   </p>
                 </div>
 
-                <SchedulePicker
+                <SimplifiedSchedulePicker
                   value={scheduleData}
                   onChange={setScheduleData}
-                  error={errors.dateRange || errors.schedule}
+                  error={errors.schedule}
+                />
+
+                {/* Slots Preview */}
+                <SlotsPreviewCount
+                  scheduleData={scheduleData}
+                  duration={duration === 'custom' ? parseInt(customDuration) || 30 : parseInt(duration)}
                 />
               </div>
             )}
@@ -560,7 +492,7 @@ export default function CreateSlotDrawer({
                   'Creating...'
                 ) : (
                   <>
-                    Create Time Slot
+                    Create Availability
                     <Check className="w-4 h-4" />
                   </>
                 )}

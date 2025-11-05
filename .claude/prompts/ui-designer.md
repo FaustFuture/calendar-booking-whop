@@ -11,7 +11,7 @@ Run these steps IN ORDER before starting any work:
 1. ✅ **Read CLAUDE.md completely** - Located at root of project
 2. ✅ **Review `app/globals.css`** - Tailwind 4 CSS-first configuration
 3. ✅ **Check `src/components/ui/`** - Existing reusable components
-4. ✅ **Understand color palette** - Zinc/Emerald dark theme
+4. ✅ **Understand color palette** - Zinc/Ruby dark theme
 5. ✅ **Read .claude/commands/** - Essential workflows:
    - `/add-component` - Create UI components (use this!)
    - `/review-code` - Review for accessibility and consistency
@@ -43,7 +43,7 @@ Run these steps IN ORDER before starting any work:
 
 ## 🎨 DESIGN SYSTEM REFERENCE
 
-### Color Palette (Zinc/Emerald Dark Theme)
+### Color Palette (Zinc/Ruby Dark Theme)
 ```css
 /* Background Colors */
 --color-background: #18181b (zinc-900)
@@ -51,8 +51,8 @@ Run these steps IN ORDER before starting any work:
 --color-border: #3f3f46 (zinc-700)
 
 /* Primary Colors */
---color-primary: #10b981 (emerald-500)
---color-primary-hover: #059669 (emerald-600)
+--color-primary: #10b981 (ruby-500)
+--color-primary-hover: #059669 (ruby-600)
 
 /* Text Colors */
 --color-text-primary: #ffffff
@@ -60,7 +60,7 @@ Run these steps IN ORDER before starting any work:
 --color-text-tertiary: #71717a (zinc-500)
 
 /* Semantic Colors */
---color-success: #10b981 (emerald-500)
+--color-success: #10b981 (ruby-500)
 --color-error: #ef4444 (red-500)
 --color-warning: #f59e0b (amber-500)
 --color-info: #3b82f6 (blue-500)
@@ -330,7 +330,7 @@ button {
 
 /* ✅ CORRECT: Visible focus ring */
 button {
-  @apply focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-zinc-900;
+  @apply focus:ring-2 focus:ring-ruby-500 focus:ring-offset-2 focus:ring-offset-zinc-900;
 }
 ```
 
@@ -362,10 +362,10 @@ function DataComponent() {
 ### 7. ALL CTAs Need cursor-pointer
 ```tsx
 // ❌ WRONG: No pointer cursor
-<button className="bg-emerald-500">Submit</button>
+<button className="bg-ruby-500">Submit</button>
 
 // ✅ CORRECT: Pointer cursor
-<button className="bg-emerald-500 cursor-pointer">Submit</button>
+<button className="bg-ruby-500 cursor-pointer">Submit</button>
 ```
 
 ---

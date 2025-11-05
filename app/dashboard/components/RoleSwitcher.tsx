@@ -16,7 +16,7 @@ export default function RoleSwitcher({ currentRole, onRoleChange }: RoleSwitcher
           className={`
             flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-colors
             ${currentRole === 'admin'
-              ? 'bg-emerald-500 text-white'
+              ? 'bg-ruby-500 text-white'
               : 'text-zinc-400 hover:text-white hover:bg-zinc-700/50'
             }
           `}
@@ -29,7 +29,7 @@ export default function RoleSwitcher({ currentRole, onRoleChange }: RoleSwitcher
           className={`
             flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-colors
             ${currentRole === 'member'
-              ? 'bg-emerald-500 text-white'
+              ? 'bg-ruby-500 text-white'
               : 'text-zinc-400 hover:text-white hover:bg-zinc-700/50'
             }
           `}

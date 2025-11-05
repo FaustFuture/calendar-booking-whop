@@ -82,7 +82,7 @@ export default function WeeklyScheduleGrid({
             className={`
               px-4 py-2 rounded-md text-sm font-medium transition-all
               ${scheduleType === 'specific'
-                ? 'bg-emerald-500 text-white'
+                ? 'bg-ruby-500 text-white'
                 : 'text-zinc-400 hover:text-zinc-200'
               }
             `}
@@ -95,7 +95,7 @@ export default function WeeklyScheduleGrid({
             className={`
               px-4 py-2 rounded-md text-sm font-medium transition-all
               ${scheduleType === 'recurring'
-                ? 'bg-emerald-500 text-white'
+                ? 'bg-ruby-500 text-white'
                 : 'text-zinc-400 hover:text-zinc-200'
               }
             `}
@@ -142,13 +142,13 @@ export default function WeeklyScheduleGrid({
                               className={`
                                 w-full h-8 rounded transition-all duration-150 text-xs
                                 ${isSelected
-                                  ? 'bg-emerald-500/20 border border-emerald-500 hover:bg-emerald-500/30'
+                                  ? 'bg-ruby-500/20 border border-ruby-500 hover:bg-ruby-500/30'
                                   : 'bg-zinc-800 border border-zinc-700 hover:border-zinc-600 hover:bg-zinc-700'
                                 }
                               `}
                             >
                               {isSelected && (
-                                <span className="text-emerald-400 text-xs font-bold">
+                                <span className="text-ruby-400 text-xs font-bold">
                                   ✓
                                 </span>
                               )}
@@ -213,7 +213,7 @@ export default function WeeklyScheduleGrid({
                   return (
                     <div
                       key={slot}
-                      className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded-md text-sm text-emerald-400"
+                      className="inline-flex items-center gap-2 px-3 py-1 bg-ruby-500/10 border border-ruby-500/30 rounded-md text-sm text-ruby-400"
                     >
                       <span>
                         {day} {hourLabel}
@@ -224,7 +224,7 @@ export default function WeeklyScheduleGrid({
                           const [d, h] = slot.split('-')
                           toggleSlot(d, parseInt(h))
                         }}
-                        className="hover:text-emerald-300"
+                        className="hover:text-ruby-300"
                       >
                         <X className="w-3 h-3" />
                       </button>

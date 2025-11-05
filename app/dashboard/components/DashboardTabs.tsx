@@ -49,7 +49,7 @@ export default function DashboardTabs() {
                     flex items-center justify-center gap-3 px-6 py-4 font-semibold transition-colors rounded-xl
                     ${
                       isActive
-                        ? 'bg-emerald-500 text-white'
+                        ? 'bg-ruby-500 text-white'
                         : 'text-zinc-400 hover:text-white hover:bg-zinc-700/50'
                     }
                   `}

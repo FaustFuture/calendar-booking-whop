@@ -1,4 +1,6 @@
--- Calendar App Database Schema for Supabase
+-- Migration: Initial Schema
+-- Created: 2025-01-06
+-- Description: Base database schema with users, availability_slots, bookings, and recordings tables
 -- Run this in your Supabase SQL Editor: https://app.supabase.com/project/_/sql
 
 -- Enable UUID extension
@@ -259,8 +261,3 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-
--- Sample data (optional - remove if not needed)
--- This will create a test admin user - you'll need to create the auth user first
--- INSERT INTO public.users (id, email, name, role) VALUES
--- ('your-auth-user-id-here', 'admin@example.com', 'Admin User', 'admin');

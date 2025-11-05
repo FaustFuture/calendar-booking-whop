@@ -60,7 +60,7 @@ const nameState = useMemo(() =>
 ```typescript
 // Good - Has cursor-pointer and proper interaction states
 <button
-  className="cursor-pointer hover:bg-emerald-600 active:scale-95 disabled:cursor-not-allowed"
+  className="cursor-pointer hover:bg-ruby-600 active:scale-95 disabled:cursor-not-allowed"
   onClick={handleClick}
 >
   Click Me
@@ -71,7 +71,7 @@ const nameState = useMemo(() =>
 ```typescript
 // Bad - Missing cursor-pointer, looks clickable but feels wrong
 <button
-  className="bg-emerald-500 text-white"
+  className="bg-ruby-500 text-white"
   onClick={handleClick}
 >
   Click Me

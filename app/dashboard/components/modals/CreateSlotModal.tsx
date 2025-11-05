@@ -272,7 +272,7 @@ export default function CreateSlotModal({
                   <div className="flex-1">
                     <span className="text-sm text-zinc-300">{connectedEmail}</span>
                   </div>
-                  <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 text-xs font-medium rounded-full">
+                  <span className="px-3 py-1 bg-ruby-500/20 text-ruby-400 text-xs font-medium rounded-full">
                     HOST
                   </span>
                 </div>
