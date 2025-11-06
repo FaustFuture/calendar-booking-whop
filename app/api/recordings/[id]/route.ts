@@ -71,9 +71,12 @@ export async function PATCH(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    // Extract companyId from body (used for auth only, not a DB column)
+    const { companyId: _, ...updateData } = body
+
     const { data, error } = await supabase
       .from('recordings')
-      .update(body)
+      .update(updateData)
       .eq('id', id)
       .select()
       .single()

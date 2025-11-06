@@ -56,9 +56,12 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Extract companyId from body (used for auth only, not a DB column)
+    const { companyId: _, ...updateData } = body
+
     const { data, error } = await supabase
       .from('bookings')
-      .update(body)
+      .update(updateData)
       .eq('id', id)
       .select()
       .single()
