@@ -37,7 +37,7 @@ export default function DateRangeSelector({ dateRange, onChange, error }: DateRa
   return (
     <div className="bg-zinc-800/50 border border-zinc-700 rounded-lg p-5">
       <div className="flex items-center gap-2 mb-4">
-        <Calendar className="w-5 h-5 text-ruby-400" />
+        <Calendar className="w-5 h-5 text-emerald-400" />
         <h3 className="text-base font-semibold text-white">Availability Window</h3>
       </div>
 
@@ -75,7 +75,7 @@ export default function DateRangeSelector({ dateRange, onChange, error }: DateRa
             type="checkbox"
             checked={dateRange.indefinite}
             onChange={handleIndefiniteToggle}
-            className="w-4 h-4 text-ruby-500 bg-zinc-700 border-zinc-600 rounded focus:ring-ruby-500 focus:ring-2"
+            className="w-4 h-4 text-emerald-500 bg-zinc-700 border-zinc-600 rounded focus:ring-emerald-500 focus:ring-2"
           />
           <span className="text-sm text-zinc-300">
             No end date (indefinite availability)

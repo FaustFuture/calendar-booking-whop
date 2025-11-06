@@ -130,7 +130,7 @@ export default function SpecificPanel({
                         w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg
                         transition-all text-left
                         ${isActive
-                          ? 'bg-ruby-500/10 border-2 border-ruby-500'
+                          ? 'bg-emerald-500/10 border-2 border-emerald-500'
                           : 'bg-zinc-900 border-2 border-zinc-700 hover:border-zinc-600'
                         }
                       `}
@@ -140,7 +140,7 @@ export default function SpecificPanel({
                           className={`
                             w-5 h-5 rounded flex items-center justify-center flex-shrink-0
                             ${hasCompleteTimes
-                              ? 'bg-ruby-500'
+                              ? 'bg-emerald-500'
                               : 'bg-zinc-700 border-2 border-zinc-600'
                             }
                           `}
@@ -149,7 +149,7 @@ export default function SpecificPanel({
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className={`text-sm font-medium truncate ${
-                            isActive ? 'text-ruby-400' : 'text-zinc-300'
+                            isActive ? 'text-emerald-400' : 'text-zinc-300'
                           }`}>
                             {formatDateDisplay(item.date)}
                           </p>
@@ -189,7 +189,7 @@ export default function SpecificPanel({
           <>
             <div className="mb-4 p-3 bg-zinc-900 rounded-lg border border-zinc-700">
               <p className="text-xs text-zinc-500 mb-1">Adding times for:</p>
-              <p className="text-sm font-medium text-ruby-400">
+              <p className="text-sm font-medium text-emerald-400">
                 {formatDateDisplay(selectedDateForTimes)}
               </p>
             </div>
@@ -207,7 +207,7 @@ export default function SpecificPanel({
                       px-3 py-2 rounded-lg text-sm font-medium
                       transition-all
                       ${isSelected
-                        ? 'bg-ruby-500/20 border-2 border-ruby-500 text-ruby-400'
+                        ? 'bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400'
                         : 'bg-zinc-900 border-2 border-zinc-700 text-zinc-300 hover:border-zinc-600'
                       }
                     `}

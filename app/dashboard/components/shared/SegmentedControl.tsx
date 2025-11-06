@@ -47,7 +47,7 @@ export default function SegmentedControl({
               className={`
                 px-4 py-2 rounded-md font-medium text-sm transition-all duration-150
                 ${isSelected
-                  ? 'bg-ruby-500 text-white shadow-sm'
+                  ? 'bg-emerald-500 text-white shadow-sm'
                   : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
                 }
               `}
@@ -64,7 +64,7 @@ export default function SegmentedControl({
             className={`
               px-4 py-2 rounded-md font-medium text-sm transition-all duration-150
               ${isCustomSelected
-                ? 'bg-ruby-500 text-white shadow-sm'
+                ? 'bg-emerald-500 text-white shadow-sm'
                 : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
               }
             `}

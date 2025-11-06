@@ -1,12 +1,19 @@
 import { Suspense } from 'react'
-import { Loader2 } from 'lucide-react'
 import IntegrationsClient from './IntegrationsClient'
+import { IntegrationCardSkeleton } from '@/app/dashboard/components/shared/ListItemSkeleton'
 
 export default function IntegrationsPage() {
   return (
     <Suspense fallback={
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-zinc-400" />
+      <div className="max-w-4xl mx-auto p-6 space-y-6">
+        <div className="space-y-2 animate-pulse">
+          <div className="h-8 bg-zinc-700 rounded w-64" />
+          <div className="h-5 bg-zinc-700 rounded w-96" />
+        </div>
+        <div className="grid gap-6 md:grid-cols-2">
+          <IntegrationCardSkeleton />
+          <IntegrationCardSkeleton />
+        </div>
       </div>
     }>
       <IntegrationsClient />

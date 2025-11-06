@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { RecordingWithRelations, User } from '@/lib/types/database'
 import { format } from 'date-fns'
 import UploadRecordingModal from '../modals/UploadRecordingModal'
+import { RecordingSkeleton } from '../shared/ListItemSkeleton'
 
 interface RecordingsTabProps {
   roleOverride?: 'admin' | 'member'
@@ -141,8 +142,18 @@ export default function RecordingsTab({ roleOverride }: RecordingsTabProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-zinc-400">Loading...</div>
+      <div className="space-y-6">
+        {/* Header skeleton */}
+        <div className="space-y-2 animate-pulse">
+          <div className="h-8 bg-zinc-700 rounded w-64" />
+          <div className="h-5 bg-zinc-700 rounded w-96" />
+        </div>
+        {/* Recordings skeleton */}
+        <div className="grid gap-4">
+          <RecordingSkeleton />
+          <RecordingSkeleton />
+          <RecordingSkeleton />
+        </div>
       </div>
     )
   }
@@ -184,75 +195,80 @@ export default function RecordingsTab({ roleOverride }: RecordingsTabProps) {
           </p>
         </div>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid gap-3">
           {recordings.map((recording) => (
-            <div key={recording.id} className="card-hover">
-              <div className="flex items-start gap-4">
-                {/* Video Thumbnail Placeholder */}
-                <div className="w-40 h-24 bg-zinc-800 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Video className="w-8 h-8 text-zinc-600" />
-                </div>
-
-                {/* Recording Info */}
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-semibold text-white mb-1 truncate">
-                    {recording.title}
-                  </h3>
-
-                  {recording.booking && (
-                    <p className="text-sm text-zinc-400 mb-2">
-                      From: {recording.booking.title}
-                    </p>
-                  )}
-
-                  <div className="flex items-center gap-4 text-sm text-zinc-500">
-                    {recording.duration && (
-                      <div className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
-                        {formatDuration(recording.duration)}
-                      </div>
-                    )}
-                    {recording.file_size && (
-                      <span>{formatFileSize(recording.file_size)}</span>
-                    )}
-                    <span>
-                      {format(new Date(recording.uploaded_at), 'MMM d, yyyy')}
-                    </span>
+            <div key={recording.id} className="rounded-xl border border-zinc-700/50 bg-zinc-800/50 hover:bg-zinc-800 hover:border-emerald-500/50 transition-colors p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  {/* Icon */}
+                  <div className="flex-shrink-0 p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                    <Video className="w-5 h-5 text-emerald-400" />
                   </div>
 
-                  {isAdmin && recording.booking?.member && (
-                    <p className="text-xs text-zinc-600 mt-2">
-                      Member: {recording.booking.member.name}
-                    </p>
-                  )}
+                  {/* Content - 2 rows */}
+                  <div className="flex-1 min-w-0">
+                    {/* Row 1: Title */}
+                    <h3 className="text-base font-semibold text-white truncate mb-1">
+                      {recording.title}
+                    </h3>
+
+                    {/* Row 2: Duration, Size, Date */}
+                    <div className="flex items-center gap-2 text-sm text-zinc-400">
+                      {recording.duration && (
+                        <>
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5" />
+                            {formatDuration(recording.duration)}
+                          </span>
+                          <span className="text-zinc-600">•</span>
+                        </>
+                      )}
+                      {recording.file_size && (
+                        <>
+                          <span>{formatFileSize(recording.file_size)}</span>
+                          <span className="text-zinc-600">•</span>
+                        </>
+                      )}
+                      <span>
+                        {format(new Date(recording.uploaded_at), 'MMM d, yyyy')}
+                      </span>
+                      {isAdmin && recording.booking?.member && (
+                        <>
+                          <span className="text-zinc-600">•</span>
+                          <span className="truncate">{recording.booking.member.name}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-2 flex-shrink-0">
+                <div className="flex items-center gap-1 flex-shrink-0">
                   <a
                     href={recording.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="btn-primary p-2"
+                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-semibold transition-colors inline-flex items-center gap-2"
                     title="Play recording"
                   >
                     <Play className="w-4 h-4" />
+                    Play
                   </a>
                   <a
                     href={recording.url}
                     download
-                    className="btn-secondary p-2"
+                    className="p-2 hover:bg-zinc-700 rounded-lg transition-colors group/btn"
                     title="Download recording"
                   >
-                    <Download className="w-4 h-4" />
+                    <Download className="w-4 h-4 text-zinc-400 group-hover/btn:text-white transition-colors" />
                   </a>
                   {isAdmin && (
                     <button
                       onClick={() => deleteRecording(recording.id)}
-                      className="btn-ghost p-2 text-red-400 hover:text-red-300"
+                      className="p-2 hover:bg-red-500/10 rounded-lg transition-colors group/btn"
                       title="Delete recording"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-4 h-4 text-zinc-400 group-hover/btn:text-red-400 transition-colors" />
                     </button>
                   )}
                 </div>

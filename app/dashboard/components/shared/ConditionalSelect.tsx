@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Video, Link as LinkIcon, MapPin, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
+import { InlineTextSkeleton } from './ListItemSkeleton'
 
 export type MeetingType = 'google_meet' | 'zoom' | 'manual_link' | 'location'
 
@@ -52,6 +53,9 @@ export default function ConditionalSelect({
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'oauth-success') {
         checkConnectionStatus()
+        setConnecting(null)
+      } else if (event.data?.type === 'oauth-error') {
+        console.error('OAuth error:', event.data.error)
         setConnecting(null)
       }
     }
@@ -183,10 +187,7 @@ export default function ConditionalSelect({
       {value === 'google_meet' && (
         <div className="animate-fade-in space-y-2">
           {connectionStatus.loading ? (
-            <div className="flex items-center gap-2 text-sm text-zinc-500">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Checking connection...</span>
-            </div>
+            <InlineTextSkeleton width="w-48" />
           ) : connectionStatus.google ? (
             <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
               <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
@@ -231,10 +232,7 @@ export default function ConditionalSelect({
       {value === 'zoom' && (
         <div className="animate-fade-in space-y-2">
           {connectionStatus.loading ? (
-            <div className="flex items-center gap-2 text-sm text-zinc-500">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Checking connection...</span>
-            </div>
+            <InlineTextSkeleton width="w-48" />
           ) : connectionStatus.zoom ? (
             <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
               <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />

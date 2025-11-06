@@ -18,23 +18,24 @@ export default function WizardStepper({ currentStep, steps }: WizardStepperProps
   return (
     <div className="mb-8">
       {/* Step Indicators */}
-      <div className="flex items-center justify-center gap-2 mb-4">
-        {steps.map((step, index) => {
-          const stepNumber = index + 1
-          const isCompleted = stepNumber < currentStep
-          const isActive = stepNumber === currentStep
-          const isUpcoming = stepNumber > currentStep
+      <div className="mb-4">
+        {/* Circles Row */}
+        <div className="flex items-center justify-center gap-8 mb-2">
+          {steps.map((step, index) => {
+            const stepNumber = index + 1
+            const isCompleted = stepNumber < currentStep
+            const isActive = stepNumber === currentStep
+            const isUpcoming = stepNumber > currentStep
 
-          return (
-            <div key={step.number} className="flex items-center">
-              {/* Step Circle */}
-              <div className="flex flex-col items-center gap-2">
+            return (
+              <div key={step.number} className="flex flex-col items-center gap-2">
+                {/* Step Circle */}
                 <div
                   className={`
                     w-10 h-10 rounded-full flex items-center justify-center
                     font-semibold text-sm transition-all duration-200
-                    ${isCompleted ? 'bg-ruby-500 text-white' : ''}
-                    ${isActive ? 'bg-ruby-500 text-white ring-4 ring-ruby-500/20' : ''}
+                    ${isCompleted ? 'bg-emerald-500 text-white' : ''}
+                    ${isActive ? 'bg-emerald-500 text-white ring-4 ring-emerald-500/20' : ''}
                     ${isUpcoming ? 'bg-zinc-800 text-zinc-500 border-2 border-zinc-700' : ''}
                   `}
                 >
@@ -44,10 +45,11 @@ export default function WizardStepper({ currentStep, steps }: WizardStepperProps
                     stepNumber
                   )}
                 </div>
+                {/* Label */}
                 <span
                   className={`
                     text-xs font-medium whitespace-nowrap
-                    ${isActive ? 'text-ruby-400' : ''}
+                    ${isActive ? 'text-emerald-400' : ''}
                     ${isCompleted ? 'text-zinc-300' : ''}
                     ${isUpcoming ? 'text-zinc-500' : ''}
                   `}
@@ -55,25 +57,15 @@ export default function WizardStepper({ currentStep, steps }: WizardStepperProps
                   {step.label}
                 </span>
               </div>
-
-              {/* Connecting Line */}
-              {index < steps.length - 1 && (
-                <div
-                  className={`
-                    w-16 h-0.5 mx-2 mb-6 transition-all duration-300
-                    ${stepNumber < currentStep ? 'bg-ruby-500' : 'bg-zinc-700'}
-                  `}
-                />
-              )}
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
 
       {/* Progress Bar */}
       <div className="relative w-full h-0.5 bg-zinc-800 rounded-full overflow-hidden">
         <div
-          className="absolute top-0 left-0 h-full bg-ruby-500 transition-all duration-300 ease-out"
+          className="absolute top-0 left-0 h-full bg-emerald-500 transition-all duration-300 ease-out"
           style={{ width: `${progress}%` }}
         />
       </div>

@@ -90,7 +90,7 @@ export default function RecurringPanel({
                   w-full flex items-center gap-3 px-4 py-3 rounded-lg
                   transition-all text-left
                   ${isSelected
-                    ? 'bg-ruby-500/10 border-2 border-ruby-500'
+                    ? 'bg-emerald-500/10 border-2 border-emerald-500'
                     : 'bg-zinc-900 border-2 border-zinc-700 hover:border-zinc-600'
                   }
                 `}
@@ -100,7 +100,7 @@ export default function RecurringPanel({
                     w-5 h-5 rounded flex items-center justify-center
                     transition-all
                     ${isSelected
-                      ? 'bg-ruby-500'
+                      ? 'bg-emerald-500'
                       : 'bg-zinc-700 border-2 border-zinc-600'
                     }
                   `}
@@ -109,7 +109,7 @@ export default function RecurringPanel({
                 </div>
                 <span
                   className={`text-sm font-medium ${
-                    isSelected ? 'text-ruby-400' : 'text-zinc-300'
+                    isSelected ? 'text-emerald-400' : 'text-zinc-300'
                   }`}
                 >
                   {day.label}
@@ -168,7 +168,7 @@ export default function RecurringPanel({
                   px-3 py-2 rounded-lg text-sm font-medium
                   transition-all
                   ${isSelected
-                    ? 'bg-ruby-500/20 border-2 border-ruby-500 text-ruby-400'
+                    ? 'bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400'
                     : 'bg-zinc-900 border-2 border-zinc-700 text-zinc-300 hover:border-zinc-600'
                   }
                 `}

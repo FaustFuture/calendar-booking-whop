@@ -8,7 +8,7 @@ export default function DashboardPage() {
         {/* Header */}
         <div className="mb-12">
           <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 bg-gradient-to-br from-ruby-500 to-ruby-600 rounded-2xl shadow-lg shadow-ruby-500/20">
+            <div className="p-3 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl">
               <Calendar className="w-8 h-8 text-white" />
             </div>
             <div>

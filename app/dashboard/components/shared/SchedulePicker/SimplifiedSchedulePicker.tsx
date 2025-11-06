@@ -258,7 +258,7 @@ export default function SimplifiedSchedulePicker({
                 type="date"
                 value={formatDateForInput(value.dateRange.start)}
                 onChange={(e) => updateDateRange('start', e.target.value)}
-                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-ruby-500"
+                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 required
               />
             </div>
@@ -273,7 +273,7 @@ export default function SimplifiedSchedulePicker({
                 onChange={(e) => updateDateRange('end', e.target.value)}
                 disabled={value.dateRange.indefinite}
                 min={formatDateForInput(value.dateRange.start)}
-                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-ruby-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
           </div>
@@ -283,7 +283,7 @@ export default function SimplifiedSchedulePicker({
               type="checkbox"
               checked={value.dateRange.indefinite}
               onChange={toggleIndefinite}
-              className="w-4 h-4 rounded bg-zinc-800 border-zinc-700 text-ruby-500 focus:ring-ruby-500"
+              className="w-4 h-4 rounded bg-zinc-800 border-zinc-700 text-emerald-500 focus:ring-emerald-500"
             />
             <span className="text-sm text-zinc-300">
               Ongoing (no end date)
@@ -353,7 +353,7 @@ export default function SimplifiedSchedulePicker({
                     type="checkbox"
                     checked={isEnabled}
                     onChange={() => toggleDay(day.key)}
-                    className="w-5 h-5 rounded bg-zinc-700 border-zinc-600 text-ruby-500 focus:ring-ruby-500 cursor-pointer"
+                    className="w-5 h-5 rounded bg-zinc-700 border-zinc-600 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
                   />
                   <span className={`text-sm font-medium flex-1 ${
                     isEnabled ? 'text-white' : 'text-zinc-400'
@@ -384,7 +384,7 @@ export default function SimplifiedSchedulePicker({
                           <div className="flex-1 grid grid-cols-2 gap-3">
                             <div className="relative">
                               <label className="flex items-center gap-1.5 text-xs text-zinc-400 mb-2">
-                                <Clock className="w-3 h-3 text-ruby-400" />
+                                <Clock className="w-3 h-3 text-emerald-400" />
                                 <span>Start</span>
                               </label>
                               <div className="relative">
@@ -394,14 +394,14 @@ export default function SimplifiedSchedulePicker({
                                   onChange={(e) =>
                                     updateTimeRange(day.key, range.id, 'startTime', e.target.value)
                                   }
-                                  className={`${styles.timeInput} w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-ruby-500 hover:border-zinc-600 transition-all`}
+                                  className={`${styles.timeInput} w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 hover:border-zinc-600 transition-all`}
                                 />
                               </div>
                             </div>
 
                             <div className="relative">
                               <label className="flex items-center gap-1.5 text-xs text-zinc-400 mb-2">
-                                <Clock className="w-3 h-3 text-ruby-400" />
+                                <Clock className="w-3 h-3 text-emerald-400" />
                                 <span>End</span>
                               </label>
                               <div className="relative">
@@ -411,7 +411,7 @@ export default function SimplifiedSchedulePicker({
                                   onChange={(e) =>
                                     updateTimeRange(day.key, range.id, 'endTime', e.target.value)
                                   }
-                                  className={`${styles.timeInput} w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-ruby-500 hover:border-zinc-600 transition-all`}
+                                  className={`${styles.timeInput} w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 hover:border-zinc-600 transition-all`}
                                 />
                               </div>
                             </div>
@@ -436,7 +436,7 @@ export default function SimplifiedSchedulePicker({
                     <button
                       type="button"
                       onClick={() => addTimeRange(day.key)}
-                      className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-zinc-900 border border-zinc-700 hover:border-ruby-500/50 hover:bg-zinc-800 rounded-lg text-xs text-zinc-400 hover:text-ruby-400 transition-all"
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-zinc-900 border border-zinc-700 hover:border-emerald-500/50 hover:bg-zinc-800 rounded-lg text-xs text-zinc-400 hover:text-emerald-400 transition-all"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       Add another time slot

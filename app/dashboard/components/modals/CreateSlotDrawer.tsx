@@ -16,6 +16,17 @@ interface CreateSlotDrawerProps {
   onClose: () => void
   onSuccess: () => void
   adminId: string
+  patternId?: string
+  editData?: {
+    title: string
+    description?: string
+    duration_minutes: number
+    price?: number
+    meeting_type?: string
+    start_date: string
+    end_date?: string
+    weekly_schedule: Record<string, Array<{ start: string; end: string }>>
+  }
 }
 
 const DURATION_OPTIONS: SegmentOption[] = [
@@ -37,6 +48,8 @@ export default function CreateSlotDrawer({
   onClose,
   onSuccess,
   adminId,
+  patternId,
+  editData,
 }: CreateSlotDrawerProps) {
   const [currentStep, setCurrentStep] = useState(1)
   const [loading, setLoading] = useState(false)
@@ -74,8 +87,62 @@ export default function CreateSlotDrawer({
     if (isOpen) {
       setLoading(true)
       loadUserData()
+
+      // Populate form if editing
+      if (editData) {
+        setTitle(editData.title)
+        setDescription(editData.description || '')
+
+        // Set duration
+        const durationStr = editData.duration_minutes.toString()
+        if (['15', '30', '60', '90'].includes(durationStr)) {
+          setDuration(durationStr)
+        } else {
+          setDuration('custom')
+          setCustomDuration(durationStr)
+        }
+
+        // Set price
+        const priceVal = editData.price || 0
+        if (priceVal === 0) {
+          setPrice('free')
+        } else if (['50', '100', '150'].includes(priceVal.toString())) {
+          setPrice(priceVal.toString())
+        } else {
+          setPrice('custom')
+          setCustomPrice(priceVal.toString())
+        }
+
+        // Set meeting type
+        setMeetingType((editData.meeting_type as MeetingType) || 'google_meet')
+
+        // Set schedule data - transform the weekly_schedule to match SimplifiedScheduleData format
+        const transformedDays: Record<string, { enabled: boolean; timeRanges: Array<{ id: string; startTime: string; endTime: string }> }> = {}
+        Object.entries(editData.weekly_schedule).forEach(([day, ranges]) => {
+          transformedDays[day] = {
+            enabled: true,
+            timeRanges: ranges.map((range, index) => ({
+              id: `${Date.now()}-${index}`,
+              startTime: range.start,
+              endTime: range.end,
+            })),
+          }
+        })
+
+        setScheduleData({
+          days: transformedDays,
+          dateRange: {
+            start: new Date(editData.start_date),
+            end: editData.end_date ? new Date(editData.end_date) : new Date(Date.now() + 28 * 24 * 60 * 60 * 1000),
+            indefinite: !editData.end_date,
+          },
+        })
+      } else {
+        // Reset form for new pattern
+        resetForm()
+      }
     }
-  }, [isOpen])
+  }, [isOpen, editData])
 
   async function loadUserData() {
     try {
@@ -205,15 +272,19 @@ export default function CreateSlotDrawer({
       }
 
       // Use patterns API endpoint
-      const response = await fetch('/api/availability/patterns', {
-        method: 'POST',
+      const url = patternId
+        ? `/api/availability/patterns/${patternId}`
+        : '/api/availability/patterns'
+
+      const response = await fetch(url, {
+        method: patternId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ commonData, scheduleData, adminId }),
       })
 
       const result = await response.json()
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to create availability pattern')
+        throw new Error(result.error || `Failed to ${patternId ? 'update' : 'create'} availability pattern`)
       }
 
       // Reset form
@@ -221,7 +292,7 @@ export default function CreateSlotDrawer({
       onSuccess()
       onClose()
     } catch (error) {
-      console.error('Error creating availability pattern:', error)
+      console.error(`Error ${patternId ? 'updating' : 'creating'} availability pattern:`, error)
       alert('Failed to create availability pattern. Please try again.')
     } finally {
       setSubmitting(false)
@@ -250,24 +321,49 @@ export default function CreateSlotDrawer({
   }
 
   function handleClose() {
-    const hasScheduleData = Object.values(scheduleData.days).some(
-      day => day.enabled && day.timeRanges && day.timeRanges.length > 0
-    )
+    // If editing, check if changes were made
+    if (patternId && editData) {
+      // Compare current form values with original edit data
+      const durationChanged = (duration === 'custom' ? customDuration : duration) !== editData.duration_minutes.toString()
+      const priceChanged = (price === 'free' ? '0' : (price === 'custom' ? customPrice : price)) !== (editData.price || 0).toString()
 
-    if (currentStep > 1 || title || description || hasScheduleData) {
-      if (confirm('Are you sure you want to close? Your progress will be lost.')) {
-        resetForm()
+      const hasChanges =
+        title !== editData.title ||
+        description !== (editData.description || '') ||
+        durationChanged ||
+        priceChanged ||
+        meetingType !== (editData.meeting_type || 'google_meet')
+
+      if (hasChanges) {
+        if (confirm('Are you sure you want to close? Your changes will be lost.')) {
+          resetForm()
+          onClose()
+        }
+      } else {
+        // No changes made, just close
         onClose()
       }
     } else {
-      onClose()
+      // Creating new pattern - check if any form data has been entered
+      const hasScheduleData = Object.values(scheduleData.days).some(
+        day => day.enabled && day.timeRanges && day.timeRanges.length > 0
+      )
+
+      if (currentStep > 1 || title || description || hasScheduleData) {
+        if (confirm('Are you sure you want to close? Your progress will be lost.')) {
+          resetForm()
+          onClose()
+        }
+      } else {
+        onClose()
+      }
     }
   }
 
   return (
     <Drawer open={isOpen} onClose={handleClose} width="lg">
       {/* Header with Stepper */}
-      <DrawerHeader title="Create Availability" onClose={handleClose}>
+      <DrawerHeader title={patternId ? "Edit Availability" : "Create Availability"} onClose={handleClose}>
         <div className="flex items-center gap-2">
           {steps.map((step, index) => {
             const stepNumber = index + 1
@@ -281,8 +377,8 @@ export default function CreateSlotDrawer({
                     className={`
                       w-8 h-8 rounded-full flex items-center justify-center
                       text-sm font-semibold transition-all
-                      ${isCompleted ? 'bg-ruby-500 text-white' : ''}
-                      ${isActive ? 'bg-ruby-500 text-white' : ''}
+                      ${isCompleted ? 'bg-emerald-500 text-white' : ''}
+                      ${isActive ? 'bg-emerald-500 text-white' : ''}
                       ${!isCompleted && !isActive ? 'bg-zinc-800 text-zinc-500' : ''}
                     `}
                   >
@@ -291,7 +387,7 @@ export default function CreateSlotDrawer({
                   <span
                     className={`
                       text-xs font-medium
-                      ${isActive ? 'text-ruby-400' : ''}
+                      ${isActive ? 'text-emerald-400' : ''}
                       ${isCompleted ? 'text-zinc-300' : ''}
                       ${!isCompleted && !isActive ? 'text-zinc-500' : ''}
                     `}
@@ -305,7 +401,7 @@ export default function CreateSlotDrawer({
                     <div
                       className={`
                         h-full transition-all duration-300
-                        ${stepNumber < currentStep ? 'bg-ruby-500' : 'bg-zinc-700'}
+                        ${stepNumber < currentStep ? 'bg-emerald-500' : 'bg-zinc-700'}
                       `}
                     />
                   </div>
@@ -331,7 +427,7 @@ export default function CreateSlotDrawer({
                   <div className="flex-1">
                     <span className="text-sm text-zinc-300">{connectedEmail}</span>
                   </div>
-                  <span className="px-3 py-1 bg-ruby-500/20 text-ruby-400 text-xs font-medium rounded-full">
+                  <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 text-xs font-medium rounded-full">
                     HOST
                   </span>
                 </div>
@@ -489,10 +585,10 @@ export default function CreateSlotDrawer({
                 className="btn-primary flex items-center gap-2 px-8 min-w-[200px]"
               >
                 {submitting ? (
-                  'Creating...'
+                  patternId ? 'Updating...' : 'Creating...'
                 ) : (
                   <>
-                    Create Availability
+                    {patternId ? 'Update Availability' : 'Create Availability'}
                     <Check className="w-4 h-4" />
                   </>
                 )}

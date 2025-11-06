@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Calendar, User as UserIcon, ExternalLink, X } from 'lucide-react'
+import { Plus, Calendar, User as UserIcon, ExternalLink, X, Copy, Check, ChevronDown, ChevronUp, Video, Link as LinkIcon, MapPin, Clock } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { BookingWithRelations, User } from '@/lib/types/database'
 import { format } from 'date-fns'
 import CreateBookingModal from '../modals/CreateBookingModal'
+import { BookingSkeleton } from '../shared/ListItemSkeleton'
 
 interface UpcomingTabProps {
   roleOverride?: 'admin' | 'member'
@@ -16,6 +17,8 @@ export default function UpcomingTab({ roleOverride }: UpcomingTabProps) {
   const [bookings, setBookings] = useState<BookingWithRelations[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [expandedBookings, setExpandedBookings] = useState<Set<string>>(new Set())
   const supabase = createClient()
 
   useEffect(() => {
@@ -102,10 +105,57 @@ export default function UpcomingTab({ roleOverride }: UpcomingTabProps) {
     }
   }
 
+  async function copyMeetingLink(bookingId: string, meetingUrl: string) {
+    try {
+      await navigator.clipboard.writeText(meetingUrl)
+      setCopiedId(bookingId)
+      setTimeout(() => setCopiedId(null), 2000)
+    } catch (error) {
+      console.error('Error copying link:', error)
+    }
+  }
+
+  function toggleExpanded(bookingId: string) {
+    setExpandedBookings(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(bookingId)) {
+        newSet.delete(bookingId)
+      } else {
+        newSet.add(bookingId)
+      }
+      return newSet
+    })
+  }
+
+  function getMeetingTypeDisplay(meetingType?: string) {
+    switch (meetingType) {
+      case 'google_meet':
+        return { icon: Video, label: 'Google Meet', color: 'text-blue-400' }
+      case 'zoom':
+        return { icon: Video, label: 'Zoom', color: 'text-blue-600' }
+      case 'manual_link':
+        return { icon: LinkIcon, label: 'Custom Link', color: 'text-purple-400' }
+      case 'location':
+        return { icon: MapPin, label: 'In Person', color: 'text-green-400' }
+      default:
+        return { icon: Video, label: 'Meeting', color: 'text-zinc-400' }
+    }
+  }
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-zinc-400">Loading...</div>
+      <div className="space-y-6">
+        {/* Header skeleton */}
+        <div className="space-y-2 animate-pulse">
+          <div className="h-8 bg-zinc-700 rounded w-64" />
+          <div className="h-5 bg-zinc-700 rounded w-96" />
+        </div>
+        {/* Bookings skeleton */}
+        <div className="grid gap-4">
+          <BookingSkeleton />
+          <BookingSkeleton />
+          <BookingSkeleton />
+        </div>
       </div>
     )
   }
@@ -127,9 +177,9 @@ export default function UpcomingTab({ roleOverride }: UpcomingTabProps) {
         {isAdmin && (
           <button
             onClick={() => setIsModalOpen(true)}
-            className="btn-primary flex items-center gap-2"
+            className="px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-semibold flex items-center gap-2 transition-colors"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-5 h-5" />
             Create Booking
           </button>
         )}
@@ -148,79 +198,149 @@ export default function UpcomingTab({ roleOverride }: UpcomingTabProps) {
         </div>
       ) : (
         <div className="grid gap-4">
-          {bookings.map((booking) => (
-            <div key={booking.id} className="card-hover">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-3">
-                    <Calendar className="w-5 h-5 text-ruby-400" />
-                    <h3 className="text-lg font-semibold text-white">
-                      {booking.title}
-                    </h3>
+          {bookings.map((booking) => {
+            const isExpanded = expandedBookings.has(booking.id)
+            const meetingDisplay = getMeetingTypeDisplay(booking.slot?.meeting_type || 'google_meet')
+            const MeetingIcon = meetingDisplay.icon
+
+            return (
+              <div key={booking.id} className="rounded-xl border border-zinc-700/50 bg-zinc-800/50 hover:bg-zinc-800 hover:border-emerald-500/50 transition-colors">
+                <div className="p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      {/* Icon */}
+                      <div className="flex-shrink-0 p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                        <Calendar className="w-5 h-5 text-emerald-400" />
+                      </div>
+
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        {/* Title */}
+                        <h3 className="text-lg font-semibold text-white mb-2">
+                          {booking.title}
+                        </h3>
+
+                        {/* Date, Time, Duration */}
+                        {booking.slot && (
+                          <div className="flex items-center gap-2 text-sm text-zinc-400 mb-2">
+                            <span className="font-medium text-white">
+                              {format(new Date(booking.slot.start_time), 'EEEE, MMMM d, yyyy')}
+                            </span>
+                            <span className="text-zinc-600">•</span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5" />
+                              {format(new Date(booking.slot.start_time), 'h:mm a')}
+                            </span>
+                            {booking.slot.end_time && (
+                              <>
+                                <span className="text-zinc-600">•</span>
+                                <span>
+                                  {Math.round((new Date(booking.slot.end_time).getTime() - new Date(booking.slot.start_time).getTime()) / (1000 * 60))} min
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Meeting Type & Person */}
+                        <div className="flex items-center gap-3 text-sm mb-3">
+                          <span className={`flex items-center gap-1.5 ${meetingDisplay.color}`}>
+                            <MeetingIcon className="w-4 h-4" />
+                            {meetingDisplay.label}
+                          </span>
+                          {isAdmin && booking.member && (
+                            <>
+                              <span className="text-zinc-600">•</span>
+                              <span className="flex items-center gap-1.5 text-zinc-300">
+                                <UserIcon className="w-4 h-4 text-zinc-400" />
+                                {booking.member.name}
+                                {booking.member.email && (
+                                  <span className="text-zinc-500">({booking.member.email})</span>
+                                )}
+                              </span>
+                            </>
+                          )}
+                          {!isAdmin && booking.admin && (
+                            <>
+                              <span className="text-zinc-600">•</span>
+                              <span className="flex items-center gap-1.5 text-zinc-300">
+                                <UserIcon className="w-4 h-4 text-zinc-400" />
+                                Host: {booking.admin.name}
+                              </span>
+                            </>
+                          )}
+                        </div>
+
+                        {/* Description - Expandable */}
+                        {booking.description && (
+                          <div className="mb-3">
+                            <button
+                              onClick={() => toggleExpanded(booking.id)}
+                              className="flex items-center gap-1.5 text-sm text-emerald-400 hover:text-emerald-300 transition-colors"
+                            >
+                              {isExpanded ? (
+                                <>
+                                  <ChevronUp className="w-4 h-4" />
+                                  Hide details
+                                </>
+                              ) : (
+                                <>
+                                  <ChevronDown className="w-4 h-4" />
+                                  Show details
+                                </>
+                              )}
+                            </button>
+                            {isExpanded && (
+                              <div className="mt-2 p-3 bg-zinc-900/50 rounded-lg border border-zinc-700/50">
+                                <p className="text-sm text-zinc-300 whitespace-pre-wrap">
+                                  {booking.description}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {booking.meeting_url && (
+                        <>
+                          <a
+                            href={booking.meeting_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-semibold transition-colors inline-flex items-center gap-2"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                            Join
+                          </a>
+                          <button
+                            onClick={() => copyMeetingLink(booking.id, booking.meeting_url!)}
+                            className="p-2 hover:bg-zinc-700 rounded-lg transition-colors group/copy"
+                            title="Copy meeting link"
+                          >
+                            {copiedId === booking.id ? (
+                              <Check className="w-4 h-4 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-4 h-4 text-zinc-400 group-hover/copy:text-zinc-200 transition-colors" />
+                            )}
+                          </button>
+                        </>
+                      )}
+                      <button
+                        onClick={() => cancelBooking(booking.id)}
+                        className="p-2 hover:bg-red-500/10 rounded-lg transition-colors group/btn"
+                        title="Cancel booking"
+                      >
+                        <X className="w-4 h-4 text-zinc-400 group-hover/btn:text-red-400 transition-colors" />
+                      </button>
+                    </div>
                   </div>
-
-                  {booking.slot && (
-                    <div className="space-y-1 text-sm mb-3">
-                      <p className="text-zinc-300">
-                        {format(new Date(booking.slot.start_time), 'EEEE, MMMM d, yyyy')}
-                      </p>
-                      <p className="text-zinc-400">
-                        {format(new Date(booking.slot.start_time), 'h:mm a')} -{' '}
-                        {format(new Date(booking.slot.end_time), 'h:mm a')}
-                      </p>
-                    </div>
-                  )}
-
-                  {isAdmin && booking.member && (
-                    <div className="flex items-center gap-2 text-sm text-zinc-400 mb-3">
-                      <UserIcon className="w-4 h-4" />
-                      <span>{booking.member.name}</span>
-                      <span className="text-zinc-600">•</span>
-                      <span>{booking.member.email}</span>
-                    </div>
-                  )}
-
-                  {!isAdmin && booking.admin && (
-                    <div className="flex items-center gap-2 text-sm text-zinc-400 mb-3">
-                      <UserIcon className="w-4 h-4" />
-                      <span>with {booking.admin.name}</span>
-                    </div>
-                  )}
-
-                  {booking.description && (
-                    <p className="text-zinc-500 text-sm mb-3">{booking.description}</p>
-                  )}
-
-                  {booking.meeting_url && (
-                    <a
-                      href={booking.meeting_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 text-ruby-400 hover:text-ruby-300 text-sm"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                      Join Meeting
-                    </a>
-                  )}
-
-                  {booking.notes && (
-                    <div className="mt-3 p-3 bg-zinc-800/50 rounded-lg">
-                      <p className="text-xs text-zinc-500 mb-1">Notes:</p>
-                      <p className="text-sm text-zinc-400">{booking.notes}</p>
-                    </div>
-                  )}
                 </div>
-
-                <button
-                  onClick={() => cancelBooking(booking.id)}
-                  className="btn-ghost p-2 text-red-400 hover:text-red-300"
-                  title="Cancel booking"
-                >
-                  <X className="w-4 h-4" />
-                </button>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 

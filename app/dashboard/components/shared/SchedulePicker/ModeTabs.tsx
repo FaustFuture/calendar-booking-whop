@@ -19,7 +19,7 @@ export default function ModeTabs({ mode, onChange }: ModeTabsProps) {
           flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-md
           font-medium text-sm transition-all
           ${mode === 'recurring'
-            ? 'bg-ruby-500 text-white shadow-lg'
+            ? 'bg-emerald-500 text-white shadow-lg'
             : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
           }
         `}
@@ -35,7 +35,7 @@ export default function ModeTabs({ mode, onChange }: ModeTabsProps) {
           flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-md
           font-medium text-sm transition-all
           ${mode === 'specific'
-            ? 'bg-ruby-500 text-white shadow-lg'
+            ? 'bg-emerald-500 text-white shadow-lg'
             : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
           }
         `}

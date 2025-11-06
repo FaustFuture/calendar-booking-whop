@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     if (error) {
       return NextResponse.redirect(
         new URL(
-          `/dashboard/settings/integrations?error=${encodeURIComponent(error)}`,
+          `/auth/oauth-error?error=${encodeURIComponent(error)}&provider=zoom`,
           request.url
         )
       )
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     if (!code || !state) {
       return NextResponse.redirect(
         new URL(
-          '/dashboard/settings/integrations?error=missing_parameters',
+          '/auth/oauth-error?error=missing_parameters&provider=zoom',
           request.url
         )
       )
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
     const userId = state.split(':')[0]
     if (!userId) {
       return NextResponse.redirect(
-        new URL('/dashboard/settings/integrations?error=invalid_state', request.url)
+        new URL('/auth/oauth-error?error=invalid_state&provider=zoom', request.url)
       )
     }
 
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
 
       if (!user || user.id !== userId) {
         return NextResponse.redirect(
-          new URL('/dashboard/settings/integrations?error=unauthorized', request.url)
+          new URL('/auth/oauth-error?error=unauthorized&provider=zoom', request.url)
         )
       }
       effectiveUserId = user.id
@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
         console.error('Failed to update OAuth connection:', updateError)
         return NextResponse.redirect(
           new URL(
-            '/dashboard/settings/integrations?error=database_error',
+            '/auth/oauth-error?error=database_error&provider=zoom',
             request.url
           )
         )
@@ -125,22 +125,22 @@ export async function GET(request: NextRequest) {
         console.error('Failed to create OAuth connection:', insertError)
         return NextResponse.redirect(
           new URL(
-            '/dashboard/settings/integrations?error=database_error',
+            '/auth/oauth-error?error=database_error&provider=zoom',
             request.url
           )
         )
       }
     }
 
-    // Redirect to success page
+    // Redirect to OAuth success page (will auto-close popup)
     return NextResponse.redirect(
-      new URL('/dashboard/settings/integrations?success=zoom', request.url)
+      new URL('/auth/oauth-success?provider=zoom', request.url)
     )
   } catch (error) {
     console.error('Zoom OAuth callback error:', error)
     return NextResponse.redirect(
       new URL(
-        `/dashboard/settings/integrations?error=${encodeURIComponent('callback_failed')}`,
+        `/auth/oauth-error?error=${encodeURIComponent('callback_failed')}&provider=zoom`,
         request.url
       )
     )

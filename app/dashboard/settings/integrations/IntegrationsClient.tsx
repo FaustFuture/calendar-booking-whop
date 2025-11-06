@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Video, CheckCircle2, XCircle, Loader2, Calendar } from 'lucide-react'
+import { Video, CheckCircle2, XCircle, Calendar, Loader2 } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
+import { IntegrationCardSkeleton } from '@/app/dashboard/components/shared/ListItemSkeleton'
 
 interface OAuthConnection {
   id: string
@@ -43,6 +44,10 @@ export default function IntegrationsClient() {
       if (event.data?.type === 'oauth-success') {
         loadConnections()
         setConnecting(null)
+      } else if (event.data?.type === 'oauth-error') {
+        console.error('OAuth error:', event.data.error)
+        setConnecting(null)
+        // Optionally show an error notification here
       }
     }
 
@@ -164,8 +169,9 @@ export default function IntegrationsClient() {
 
       {/* Integrations Grid */}
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-zinc-400" />
+        <div className="grid gap-6 md:grid-cols-2">
+          <IntegrationCardSkeleton />
+          <IntegrationCardSkeleton />
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2">
