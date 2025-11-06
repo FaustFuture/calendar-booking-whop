@@ -210,11 +210,14 @@ export async function POST(request: Request) {
 
     console.log('💾 Inserting booking with meeting_url:', meetingUrl ? '✅ Present' : '❌ Missing')
 
+    // Extract companyId from body (used for auth only, not a DB column)
+    const { companyId: _, ...bookingData } = body
+
     const { data, error } = await supabase
       .from('bookings')
       .insert({
-        ...body,
-        status: body.status || 'upcoming',
+        ...bookingData,
+        status: bookingData.status || 'upcoming',
         meeting_url: meetingUrl,
       })
       .select()

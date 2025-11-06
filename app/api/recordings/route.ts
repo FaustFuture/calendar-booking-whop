@@ -105,13 +105,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
+    // Extract companyId from body (used for auth only, not a DB column)
+    const { companyId: _, ...bodyData } = body
+
     // Set defaults for manual uploads
     const recordingData = {
-      ...body,
-      provider: body.provider || 'manual',
-      status: body.status || 'available',
-      recording_type: body.recording_type || 'cloud',
-      auto_fetched: body.auto_fetched || false,
+      ...bodyData,
+      provider: bodyData.provider || 'manual',
+      status: bodyData.status || 'available',
+      recording_type: bodyData.recording_type || 'cloud',
+      auto_fetched: bodyData.auto_fetched || false,
     }
 
     const { data, error } = await supabase

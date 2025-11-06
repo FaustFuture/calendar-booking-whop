@@ -85,9 +85,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
+    // Extract companyId from body (used for auth only, not a DB column)
+    const { companyId: _, ...slotData } = body
+
     const { data, error } = await supabase
       .from('availability_slots')
-      .insert(body)
+      .insert(slotData)
       .select()
       .single()
 
