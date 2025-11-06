@@ -87,13 +87,13 @@ export async function verifyWhopUser(companyId: string): Promise<WhopAuthResult>
     }
 
     // Determine role based on access level
-    const role = await determineUserRole(userId, companyId, access)
+    const role = await determineUserRole(userId, effectiveCompanyId, access)
 
     return {
       success: true,
       user: {
         userId,
-        companyId,
+        companyId: effectiveCompanyId,
         role,
         email: (user as any).email || undefined,
         name: (user as any).username || (user as any).email || 'User',
