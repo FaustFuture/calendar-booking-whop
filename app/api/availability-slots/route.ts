@@ -1,14 +1,27 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { getWhopUserFromHeaders } from '@/lib/auth'
 
 // GET /api/availability-slots - List availability slots
 export async function GET(request: Request) {
   try {
-    const supabase = await createClient()
     const { searchParams } = new URL(request.url)
     const isAvailable = searchParams.get('is_available')
     const adminId = searchParams.get('admin_id')
+    const companyId = searchParams.get('companyId')
 
+    // Require companyId for Whop multi-tenancy
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'companyId is required' },
+        { status: 400 }
+      )
+    }
+
+    // Optional auth - guests can view availability
+    const whopUser = await getWhopUserFromHeaders()
+
+    const supabase = await createClient()
     let query = supabase
       .from('availability_slots')
       .select('*')
@@ -39,28 +52,37 @@ export async function GET(request: Request) {
   }
 }
 
-// POST /api/availability-slots - Create availability slot
+// POST /api/availability-slots - Create availability slot (Admin only)
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
     const body = await request.json()
 
-    // Get authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
+    // Require companyId
+    const { companyId } = body
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'companyId is required' },
+        { status: 400 }
+      )
+    }
+
+    // Get authenticated Whop user
+    const whopUser = await getWhopUserFromHeaders()
+    if (!whopUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get user role
+    // Get user role from Supabase
     const { data: userData } = await supabase
       .from('users')
       .select('role')
-      .eq('id', user.id)
+      .eq('id', whopUser.userId)
       .single()
 
     // Only admins can create availability slots
     if (userData?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
     const { data, error } = await supabase

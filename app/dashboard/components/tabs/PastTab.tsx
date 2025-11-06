@@ -2,83 +2,35 @@
 
 import { useEffect, useState } from 'react'
 import { Calendar, User as UserIcon, CheckCircle, ExternalLink, Copy, Check } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
-import { BookingWithRelations, User } from '@/lib/types/database'
+import { BookingWithRelations } from '@/lib/types/database'
 import { format } from 'date-fns'
 import { BookingSkeleton } from '../shared/ListItemSkeleton'
 
 interface PastTabProps {
   roleOverride?: 'admin' | 'member'
+  companyId: string
 }
 
-export default function PastTab({ roleOverride }: PastTabProps) {
-  const [user, setUser] = useState<User | null>(null)
+export default function PastTab({ roleOverride, companyId }: PastTabProps) {
   const [bookings, setBookings] = useState<BookingWithRelations[]>([])
   const [loading, setLoading] = useState(true)
   const [copiedId, setCopiedId] = useState<string | null>(null)
-  const supabase = createClient()
 
   useEffect(() => {
-    loadUserAndBookings()
-  }, [roleOverride]) // Refetch when role changes
+    loadBookings()
+  }, [roleOverride, companyId]) // Refetch when role or companyId changes
 
-  async function loadUserAndBookings() {
+  async function loadBookings() {
     try {
       setLoading(true)
 
-      // Get current user
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-
-      let userId = authUser?.id
-      let userData = null
-
-      // Handle dev mode - use dev admin ID if no auth
-      if (!authUser) {
-        userId = '00000000-0000-0000-0000-000000000001'
-        // Try to get dev user profile
-        const { data: devUserData } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', userId)
-          .single()
-
-        userData = devUserData
-      } else {
-        // Get user profile for authenticated user
-        const { data: profileData } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', authUser.id)
-          .single()
-
-        userData = profileData
+      const response = await fetch(`/api/bookings?companyId=${companyId}&status=completed,cancelled`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch bookings')
       }
 
-      setUser(userData)
-
-      // Load past bookings (completed or cancelled)
-      const effectiveRole = roleOverride || userData?.role || 'admin'
-
-      let query = supabase
-        .from('bookings')
-        .select(`
-          *,
-          member:member_id(id, name, email),
-          admin:admin_id(id, name, email),
-          slot:slot_id(start_time, end_time)
-        `)
-        .in('status', ['completed', 'cancelled'])
-        .order('created_at', { ascending: false })
-
-      if (effectiveRole === 'member') {
-        // Members only see their own bookings
-        query = query.eq('member_id', userId)
-      }
-      // Admins see all bookings (no filter needed)
-
-      const { data: bookingsData } = await query
-
-      setBookings(bookingsData || [])
+      const data = await response.json()
+      setBookings(data.bookings || [])
     } catch (error) {
       console.error('Error loading bookings:', error)
     } finally {
@@ -114,7 +66,7 @@ export default function PastTab({ roleOverride }: PastTabProps) {
     )
   }
 
-  const isAdmin = roleOverride ? roleOverride === 'admin' : user?.role === 'admin'
+  const isAdmin = roleOverride === 'admin'
 
   return (
     <div className="space-y-6">

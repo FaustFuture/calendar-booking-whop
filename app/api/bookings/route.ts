@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { meetingService } from '@/lib/services/meetingService'
 import { OAuthProvider } from '@/lib/types/database'
+import { getWhopUserFromHeaders, extractCompanyId } from '@/lib/auth'
 
 // Helper function to map meeting_type to OAuth provider
 function getOAuthProvider(meetingType: string): OAuthProvider {
@@ -13,21 +14,31 @@ function getOAuthProvider(meetingType: string): OAuthProvider {
 // GET /api/bookings - List bookings
 export async function GET(request: Request) {
   try {
-    const supabase = await createClient()
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
+    const companyId = searchParams.get('companyId')
 
-    // Get authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
+    // Require companyId for Whop multi-tenancy
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'companyId is required' },
+        { status: 400 }
+      )
+    }
+
+    // Get authenticated Whop user
+    const whopUser = await getWhopUserFromHeaders()
+    if (!whopUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get user role
+    const supabase = await createClient()
+
+    // Get user role from Supabase
     const { data: userData } = await supabase
       .from('users')
       .select('role')
-      .eq('id', user.id)
+      .eq('id', whopUser.userId)
       .single()
 
     let query = supabase
@@ -47,7 +58,7 @@ export async function GET(request: Request) {
 
     // Members only see their own bookings
     if (userData?.role === 'member') {
-      query = query.eq('member_id', user.id)
+      query = query.eq('member_id', whopUser.userId)
     }
 
     const { data, error } = await query
@@ -70,6 +81,18 @@ export async function POST(request: Request) {
   try {
     const supabase = await createClient()
     const body = await request.json()
+
+    // Get companyId from request body (required for multi-tenancy)
+    const { companyId } = body
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'companyId is required' },
+        { status: 400 }
+      )
+    }
+
+    // Optional: Get Whop user if authenticated (guests allowed)
+    const whopUser = await getWhopUserFromHeaders()
 
     // Get slot or pattern details to check if meeting generation is needed
     let meetingUrl = body.meeting_url || null

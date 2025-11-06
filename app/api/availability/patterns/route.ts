@@ -1,12 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { getWhopUserFromHeaders } from '@/lib/auth'
 
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
 
     const body = await request.json()
-    const { commonData, scheduleData, adminId } = body
+    const { commonData, scheduleData, companyId } = body
 
     // Validate input
     if (!commonData || !scheduleData) {
@@ -16,16 +17,30 @@ export async function POST(request: Request) {
       )
     }
 
-    // Determine admin ID: use provided adminId (for dev mode) or get from auth
-    let effectiveAdminId = adminId
+    // Require companyId for Whop multi-tenancy
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'companyId is required' },
+        { status: 400 }
+      )
+    }
 
-    if (!effectiveAdminId) {
-      // Try to get from authenticated user
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
-      if (userError || !user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-      effectiveAdminId = user.id
+    // Get authenticated Whop user
+    const whopUser = await getWhopUserFromHeaders()
+    if (!whopUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Get user role from Supabase
+    const { data: userData } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', whopUser.userId)
+      .single()
+
+    // Only admins can create availability patterns
+    if (userData?.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
     // Convert scheduleData to weekly_schedule JSONB format
@@ -45,7 +60,7 @@ export async function POST(request: Request) {
     const { data: pattern, error } = await supabase
       .from('availability_patterns')
       .insert({
-        admin_id: effectiveAdminId,
+        admin_id: whopUser.userId,
         title: commonData.title,
         description: commonData.description || null,
         duration_minutes: commonData.duration_minutes,
@@ -85,22 +100,40 @@ export async function POST(request: Request) {
 // GET - Fetch availability patterns
 export async function GET(request: Request) {
   try {
-    const supabase = await createClient()
-
     const { searchParams } = new URL(request.url)
     const adminId = searchParams.get('adminId')
+    const companyId = searchParams.get('companyId')
 
-    // Determine effective admin ID
-    let effectiveAdminId = adminId
-
-    if (!effectiveAdminId) {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        effectiveAdminId = '00000000-0000-0000-0000-000000000001'
-      } else {
-        effectiveAdminId = user.id
-      }
+    // Require companyId for Whop multi-tenancy
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'companyId is required' },
+        { status: 400 }
+      )
     }
+
+    // Get authenticated Whop user
+    const whopUser = await getWhopUserFromHeaders()
+    if (!whopUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const supabase = await createClient()
+
+    // Get user role from Supabase
+    const { data: userData } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', whopUser.userId)
+      .single()
+
+    // Only admins can fetch availability patterns
+    if (userData?.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
+    }
+
+    // Use provided adminId or current user's ID
+    const effectiveAdminId = adminId || whopUser.userId
 
     const { data: patterns, error } = await supabase
       .from('availability_patterns')

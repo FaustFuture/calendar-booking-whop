@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/server'
 import { meetingService } from '@/lib/services/meetingService'
 import { OAuthProvider } from '@/lib/types/database'
 import { MeetingServiceError } from '@/lib/services/types'
+import { getWhopUserFromHeaders } from '@/lib/auth'
 
 interface GenerateMeetingRequest {
   provider: OAuthProvider
@@ -18,23 +19,29 @@ interface GenerateMeetingRequest {
   endTime: string
   attendeeEmails: string[]
   timezone?: string
+  companyId: string
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
-
-    // Get current user (or use dev mode)
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    // Dev mode fallback
-    const DEV_MODE_USER_ID = '00000000-0000-0000-0000-000000000001'
-    const userId = user?.id || DEV_MODE_USER_ID
-
     // Parse request body
     const body: GenerateMeetingRequest = await request.json()
+
+    // Require companyId for Whop multi-tenancy
+    if (!body.companyId) {
+      return NextResponse.json(
+        { error: 'companyId is required' },
+        { status: 400 }
+      )
+    }
+
+    // Get authenticated Whop user
+    const whopUser = await getWhopUserFromHeaders()
+    if (!whopUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const supabase = await createClient()
 
     // Validate required fields
     if (
@@ -57,7 +64,7 @@ export async function POST(request: NextRequest) {
 
     // Check if user has active connection
     const hasConnection = await meetingService.hasActiveConnection(
-      userId,
+      whopUser.userId,
       body.provider
     )
 
@@ -72,7 +79,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate meeting link
-    const result = await meetingService.generateMeetingLink(userId, body.provider, {
+    const result = await meetingService.generateMeetingLink(whopUser.userId, body.provider, {
       title: body.title,
       description: body.description,
       startTime: body.startTime,
@@ -112,37 +119,34 @@ export async function POST(request: NextRequest) {
 
 /**
  * Check OAuth connection status
- * GET /api/meetings/generate?provider=google
+ * GET /api/meetings/generate?provider=google&companyId=xxx
  */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient()
+    const companyId = request.nextUrl.searchParams.get('companyId')
 
-    // Get userId from query (for dev mode) or from auth
-    const queryUserId = request.nextUrl.searchParams.get('userId')
-    let userId = queryUserId
-
-    if (!userId) {
-      // Try to get from authenticated user
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) {
-        // Fall back to dev mode ID
-        userId = '00000000-0000-0000-0000-000000000001'
-      } else {
-        userId = user.id
-      }
+    // Require companyId for Whop multi-tenancy
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'companyId is required' },
+        { status: 400 }
+      )
     }
 
+    // Get authenticated Whop user
+    const whopUser = await getWhopUserFromHeaders()
+    if (!whopUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const supabase = await createClient()
     const provider = request.nextUrl.searchParams.get('provider') as OAuthProvider
 
     if (!provider || (provider !== 'google' && provider !== 'zoom')) {
       return NextResponse.json({ error: 'Invalid provider' }, { status: 400 })
     }
 
-    const hasConnection = await meetingService.hasActiveConnection(userId, provider)
+    const hasConnection = await meetingService.hasActiveConnection(whopUser.userId, provider)
 
     return NextResponse.json({
       provider,

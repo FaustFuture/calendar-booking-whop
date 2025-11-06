@@ -52,6 +52,7 @@ interface UploadRecordingModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
+  companyId: string
   bookingId?: string // Optional pre-selected booking
 }
 
@@ -59,6 +60,7 @@ export default function UploadRecordingModal({
   isOpen,
   onClose,
   onSuccess,
+  companyId,
   bookingId,
 }: UploadRecordingModalProps) {
   const [loading, setLoading] = useState(false)

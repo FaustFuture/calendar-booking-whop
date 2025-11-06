@@ -1,12 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { getWhopUserFromHeaders } from '@/lib/auth'
 
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
 
     const body = await request.json()
-    const { commonData, timeSlots, adminId } = body
+    const { commonData, timeSlots, companyId } = body
 
     // Validate input
     if (!commonData || !timeSlots || !Array.isArray(timeSlots)) {
@@ -23,21 +24,35 @@ export async function POST(request: Request) {
       )
     }
 
-    // Determine admin ID: use provided adminId (for dev mode) or get from auth
-    let effectiveAdminId = adminId
+    // Require companyId for Whop multi-tenancy
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'companyId is required' },
+        { status: 400 }
+      )
+    }
 
-    if (!effectiveAdminId) {
-      // Try to get from authenticated user
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
-      if (userError || !user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-      effectiveAdminId = user.id
+    // Get authenticated Whop user
+    const whopUser = await getWhopUserFromHeaders()
+    if (!whopUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Get user role from Supabase
+    const { data: userData } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', whopUser.userId)
+      .single()
+
+    // Only admins can create availability slots in bulk
+    if (userData?.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
     // Build full slots array by merging common data with time slots
     const slotsToCreate = timeSlots.map((slot: { start_time: string; end_time: string }) => ({
-      admin_id: effectiveAdminId,
+      admin_id: whopUser.userId,
       title: commonData.title,
       description: commonData.description || null,
       start_time: slot.start_time,

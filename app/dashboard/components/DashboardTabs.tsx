@@ -1,17 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Calendar, Clock, History, Video, Plus } from 'lucide-react'
 import AvailabilityTab from './tabs/AvailabilityTab'
 import UpcomingTab from './tabs/UpcomingTab'
 import PastTab from './tabs/PastTab'
 import RecordingsTab from './tabs/RecordingsTab'
-import RoleSwitcher from './RoleSwitcher'
 import CreateSlotDrawer from './modals/CreateSlotDrawer'
-import { createClient } from '@/lib/supabase/client'
-import { useEffect } from 'react'
 import { AvailabilityPattern } from '@/lib/types/database'
 import { updatePastBookingsStatus } from '@/lib/utils/bookings'
+import { useWhopUser } from '@/lib/context/WhopUserContext'
 
 export type TabType = 'availability' | 'upcoming' | 'past' | 'recordings'
 export type UserRole = 'admin' | 'member'
@@ -29,16 +27,16 @@ const tabs: Tab[] = [
   { id: 'recordings', label: 'Recordings', icon: Video },
 ]
 
-export default function DashboardTabs() {
+interface DashboardTabsProps {
+  companyId: string
+}
+
+export default function DashboardTabs({ companyId }: DashboardTabsProps) {
+  const { user, isAdmin } = useWhopUser()
   const [activeTab, setActiveTab] = useState<TabType>('availability')
-  const [roleOverride, setRoleOverride] = useState<UserRole>('admin')
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [userId, setUserId] = useState<string>('')
   const [refreshKey, setRefreshKey] = useState(0)
   const [editingPattern, setEditingPattern] = useState<AvailabilityPattern | null>(null)
-
-  const supabase = createClient()
-  const isAdmin = roleOverride === 'admin'
 
   // Handle tab change and update past bookings when viewing booking-related tabs
   function handleTabChange(tab: TabType) {
@@ -49,15 +47,9 @@ export default function DashboardTabs() {
   }
 
   useEffect(() => {
-    loadUser()
     // Update past bookings status on dashboard load
     updatePastBookingsStatus()
   }, [])
-
-  async function loadUser() {
-    const { data: { user } } = await supabase.auth.getUser()
-    setUserId(user?.id || '00000000-0000-0000-0000-000000000001')
-  }
 
   function handleSlotCreated() {
     setRefreshKey(prev => prev + 1)
@@ -74,11 +66,17 @@ export default function DashboardTabs() {
     setEditingPattern(null)
   }
 
-  return (
-    <div className="w-full space-y-6">
-      {/* Role Switcher (Development Only) */}
-      <RoleSwitcher currentRole={roleOverride} onRoleChange={setRoleOverride} />
+  // Early return if no user
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-zinc-400">Loading...</p>
+      </div>
+    )
+  }
 
+  return (
+    <div className="w-full space-y-6 p-6">
       {/* Availability Header - Only show on availability tab */}
       {activeTab === 'availability' && (
         <div className="rounded-xl bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/20 p-5">
@@ -144,42 +142,53 @@ export default function DashboardTabs() {
         {activeTab === 'availability' && (
           <AvailabilityTab
             key={`availability-${refreshKey}`}
-            roleOverride={roleOverride}
+            roleOverride={user.role}
+            companyId={companyId}
             hideHeader
             onEditPattern={handleEditPattern}
           />
         )}
         {activeTab === 'upcoming' && (
-          <UpcomingTab key="upcoming" roleOverride={roleOverride} />
+          <UpcomingTab
+            key="upcoming"
+            roleOverride={user.role}
+            companyId={companyId}
+          />
         )}
         {activeTab === 'past' && (
-          <PastTab key="past" roleOverride={roleOverride} />
+          <PastTab
+            key="past"
+            roleOverride={user.role}
+            companyId={companyId}
+          />
         )}
         {activeTab === 'recordings' && (
-          <RecordingsTab key="recordings" roleOverride={roleOverride} />
+          <RecordingsTab
+            key="recordings"
+            roleOverride={user.role}
+            companyId={companyId}
+          />
         )}
       </div>
 
       {/* Create Slot Modal */}
-      {userId && (
-        <CreateSlotDrawer
-          isOpen={isModalOpen}
-          onClose={handleCloseModal}
-          onSuccess={handleSlotCreated}
-          adminId={userId}
-          patternId={editingPattern?.id}
-          editData={editingPattern ? {
-            title: editingPattern.title,
-            description: editingPattern.description || undefined,
-            duration_minutes: editingPattern.duration_minutes,
-            price: editingPattern.price || undefined,
-            meeting_type: editingPattern.meeting_type || undefined,
-            start_date: editingPattern.start_date,
-            end_date: editingPattern.end_date || undefined,
-            weekly_schedule: editingPattern.weekly_schedule,
-          } : undefined}
-        />
-      )}
+      <CreateSlotDrawer
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        onSuccess={handleSlotCreated}
+        companyId={companyId}
+        patternId={editingPattern?.id}
+        editData={editingPattern ? {
+          title: editingPattern.title,
+          description: editingPattern.description || undefined,
+          duration_minutes: editingPattern.duration_minutes,
+          price: editingPattern.price || undefined,
+          meeting_type: editingPattern.meeting_type || undefined,
+          start_date: editingPattern.start_date,
+          end_date: editingPattern.end_date || undefined,
+          weekly_schedule: editingPattern.weekly_schedule,
+        } : undefined}
+      />
     </div>
   )
 }

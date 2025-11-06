@@ -34,9 +34,13 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Verify state parameter (extract user ID)
-    const userId = state.split(':')[0]
-    if (!userId) {
+    // Verify state parameter (extract user ID and company ID)
+    // State format: userId:companyId:timestamp:random
+    const stateParts = state.split(':')
+    const userId = stateParts[0]
+    const companyId = stateParts[1]
+
+    if (!userId || !companyId) {
       return NextResponse.redirect(
         new URL('/auth/oauth-error?error=invalid_state&provider=google', request.url)
       )
@@ -44,30 +48,7 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createClient()
 
-    // Verify user is authenticated (or use dev mode)
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    // Allow dev mode fallback if no authenticated user
-    const DEV_MODE_USER_ID = '00000000-0000-0000-0000-000000000001'
-    const isDevMode = userId === DEV_MODE_USER_ID
-
-    if (!user && !isDevMode) {
-      return NextResponse.redirect(
-        new URL('/auth/oauth-error?error=unauthorized&provider=google', request.url)
-      )
-    }
-
-    // In dev mode, skip user ID validation
-    if (!isDevMode && user?.id !== userId) {
-      return NextResponse.redirect(
-        new URL('/auth/oauth-error?error=unauthorized&provider=google', request.url)
-      )
-    }
-
-    // Use authenticated user ID or dev mode ID for database operations
-    const dbUserId = user?.id || DEV_MODE_USER_ID
+    // Use userId directly (from Whop authentication)
 
     // Exchange code for tokens
     const tokens = await googleMeetService.exchangeCodeForTokens(code)
@@ -82,7 +63,7 @@ export async function GET(request: NextRequest) {
     const { data: existingConnection } = await supabase
       .from('oauth_connections')
       .select('id')
-      .eq('user_id', dbUserId)
+      .eq('user_id', userId)
       .eq('provider', 'google')
       .single()
 
@@ -106,7 +87,7 @@ export async function GET(request: NextRequest) {
         console.error('Failed to update OAuth connection:', updateError)
         return NextResponse.redirect(
           new URL(
-            '/auth/oauth-error?error=database_error&provider=google',
+            `/dashboard/${companyId}/settings/integrations?error=database_error&provider=google`,
             request.url
           )
         )
@@ -116,7 +97,7 @@ export async function GET(request: NextRequest) {
       const { error: insertError } = await supabase
         .from('oauth_connections')
         .insert({
-          user_id: dbUserId,
+          user_id: userId,
           provider: 'google',
           access_token: tokens.access_token,
           refresh_token: tokens.refresh_token,
@@ -132,16 +113,16 @@ export async function GET(request: NextRequest) {
         console.error('Failed to create OAuth connection:', insertError)
         return NextResponse.redirect(
           new URL(
-            '/auth/oauth-error?error=database_error&provider=google',
+            `/dashboard/${companyId}/settings/integrations?error=database_error&provider=google`,
             request.url
           )
         )
       }
     }
 
-    // Redirect to OAuth success page (will auto-close popup)
+    // Redirect to OAuth success page with companyId
     return NextResponse.redirect(
-      new URL('/auth/oauth-success?provider=google', request.url)
+      new URL(`/auth/oauth-success?provider=google&companyId=${companyId}`, request.url)
     )
   } catch (error) {
     console.error('Google OAuth callback error:', error)

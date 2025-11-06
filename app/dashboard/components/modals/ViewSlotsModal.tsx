@@ -17,6 +17,7 @@ interface ViewSlotsModalProps {
   isOpen: boolean
   onClose: () => void
   pattern: AvailabilityPattern | null
+  companyId: string
   onBookingSuccess?: () => void
   currentUserId?: string | null  // Pass the current user ID from parent
   currentUserEmail?: string | null  // Pass the current user email from parent
@@ -26,6 +27,7 @@ export default function ViewSlotsModal({
   isOpen,
   onClose,
   pattern,
+  companyId,
   onBookingSuccess,
   currentUserId = null,
   currentUserEmail = null
@@ -170,6 +172,7 @@ export default function ViewSlotsModal({
       const bookingData: any = {
         pattern_id: pattern.id,
         admin_id: pattern.admin_id,
+        companyId: companyId,
         title: pattern.title,
         description: pattern.description,
         status: 'upcoming',

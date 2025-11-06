@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Video, Upload, Play, Trash2, Clock, Filter, X, ExternalLink } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
-import { RecordingWithRelations, User, RecordingProvider, RecordingStatus } from '@/lib/types/database'
+import { RecordingWithRelations, RecordingProvider, RecordingStatus } from '@/lib/types/database'
 import { format } from 'date-fns'
 import UploadRecordingModal from '../modals/UploadRecordingModal'
 import { RecordingSkeleton } from '../shared/ListItemSkeleton'
@@ -14,85 +13,32 @@ import DrawerFooter from '../shared/Drawer/DrawerFooter'
 
 interface RecordingsTabProps {
   roleOverride?: 'admin' | 'member'
+  companyId: string
 }
 
-export default function RecordingsTab({ roleOverride }: RecordingsTabProps) {
-  const [user, setUser] = useState<User | null>(null)
+export default function RecordingsTab({ roleOverride, companyId }: RecordingsTabProps) {
   const [recordings, setRecordings] = useState<RecordingWithRelations[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedRecording, setSelectedRecording] = useState<RecordingWithRelations | null>(null)
   const [filterProvider, setFilterProvider] = useState<RecordingProvider | 'all'>('all')
   const [filterStatus, setFilterStatus] = useState<RecordingStatus | 'all'>('all')
-  const supabase = createClient()
 
   useEffect(() => {
-    loadUserAndRecordings()
-  }, [roleOverride]) // Refetch when role changes
+    loadRecordings()
+  }, [roleOverride, companyId]) // Refetch when role or companyId changes
 
-  async function loadUserAndRecordings() {
+  async function loadRecordings() {
     try {
       setLoading(true)
 
-      // Get current user
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-
-      let userId = authUser?.id
-      let userData = null
-
-      // Handle dev mode - use dev admin ID if no auth
-      if (!authUser) {
-        userId = '00000000-0000-0000-0000-000000000001'
-        // Try to get dev user profile
-        const { data: devUserData } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', userId)
-          .single()
-
-        userData = devUserData
-      } else {
-        // Get user profile for authenticated user
-        const { data: profileData } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', authUser.id)
-          .single()
-
-        userData = profileData
+      const response = await fetch(`/api/recordings?companyId=${companyId}`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch recordings')
       }
 
-      setUser(userData)
-
-      // Load recordings with booking details
-      const { data: recordingsData } = await supabase
-        .from('recordings')
-        .select(`
-          *,
-          booking:booking_id(
-            id,
-            title,
-            member_id,
-            admin_id,
-            member:member_id(id, name, email),
-            admin:admin_id(id, name, email)
-          )
-        `)
-        .order('uploaded_at', { ascending: false })
-
-      // Filter recordings based on role
-      const effectiveRole = roleOverride || userData?.role || 'admin'
-
-      if (effectiveRole === 'member') {
-        // Members only see recordings for their bookings
-        const filtered = recordingsData?.filter(
-          (rec: RecordingWithRelations) => rec.booking?.member_id === userId
-        )
-        setRecordings(filtered || [])
-      } else {
-        // Admins see all recordings
-        setRecordings(recordingsData || [])
-      }
+      const data = await response.json()
+      setRecordings(data.recordings || [])
     } catch (error) {
       console.error('Error loading recordings:', error)
     } finally {
@@ -106,14 +52,15 @@ export default function RecordingsTab({ roleOverride }: RecordingsTabProps) {
     }
 
     try {
-      const { error } = await supabase
-        .from('recordings')
-        .delete()
-        .eq('id', recordingId)
+      const response = await fetch(`/api/recordings/${recordingId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId }),
+      })
 
-      if (!error) {
+      if (response.ok) {
         // Reload recordings
-        loadUserAndRecordings()
+        loadRecordings()
       }
     } catch (error) {
       console.error('Error deleting recording:', error)
@@ -201,7 +148,7 @@ export default function RecordingsTab({ roleOverride }: RecordingsTabProps) {
     )
   }
 
-  const isAdmin = roleOverride ? roleOverride === 'admin' : user?.role === 'admin'
+  const isAdmin = roleOverride === 'admin'
 
   return (
     <div className="space-y-6">
@@ -471,7 +418,8 @@ export default function RecordingsTab({ roleOverride }: RecordingsTabProps) {
         <UploadRecordingModal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          onSuccess={loadUserAndRecordings}
+          onSuccess={loadRecordings}
+          companyId={companyId}
         />
       )}
     </div>

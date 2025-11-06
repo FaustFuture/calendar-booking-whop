@@ -1,39 +1,35 @@
 /**
  * Google OAuth Initiation Endpoint
  * GET /api/meetings/oauth/google
- * Initiates the Google OAuth flow
+ * Initiates the Google OAuth flow for Whop authenticated users
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { getWhopUserFromHeaders } from '@/lib/auth'
 import { googleMeetService } from '@/lib/services/googleMeetService'
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient()
-
-    // Get userId from query params (for dev mode) or from auth
     const { searchParams } = new URL(request.url)
-    const queryUserId = searchParams.get('userId')
+    const companyId = searchParams.get('companyId')
 
-    let userId = queryUserId
+    // Require companyId for multi-tenancy
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'companyId is required' },
+        { status: 400 }
+      )
+    }
 
-    if (!userId) {
-      // Try to get from authenticated user
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) {
-        // Fall back to dev mode ID
-        userId = '00000000-0000-0000-0000-000000000001'
-      } else {
-        userId = user.id
-      }
+    // Get authenticated Whop user
+    const whopUser = await getWhopUserFromHeaders()
+    if (!whopUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Generate state parameter for CSRF protection
-    const state = `${userId}:${Date.now()}:${Math.random().toString(36).substring(7)}`
+    // Include companyId in state to validate on callback
+    const state = `${whopUser.userId}:${companyId}:${Date.now()}:${Math.random().toString(36).substring(7)}`
 
     // Get authorization URL
     const authUrl = googleMeetService.getAuthorizationUrl(state)

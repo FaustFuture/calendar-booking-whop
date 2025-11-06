@@ -1,20 +1,31 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { getWhopUserFromHeaders } from '@/lib/auth'
 
 // GET /api/recordings - List recordings
 export async function GET(request: Request) {
   try {
-    const supabase = await createClient()
     const { searchParams } = new URL(request.url)
     const bookingId = searchParams.get('booking_id')
     const provider = searchParams.get('provider') // Filter by provider (google, zoom, manual)
     const status = searchParams.get('status') // Filter by status (processing, available, failed)
+    const companyId = searchParams.get('companyId')
 
-    // Get authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
+    // Require companyId for Whop multi-tenancy
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'companyId is required' },
+        { status: 400 }
+      )
+    }
+
+    // Get authenticated Whop user
+    const whopUser = await getWhopUserFromHeaders()
+    if (!whopUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const supabase = await createClient()
 
     let query = supabase
       .from('recordings')
@@ -54,13 +65,13 @@ export async function GET(request: Request) {
     const { data: userData } = await supabase
       .from('users')
       .select('role')
-      .eq('id', user.id)
+      .eq('id', whopUser.userId)
       .single()
 
     // Members only see recordings for their bookings
     if (userData?.role === 'member') {
       const filtered = data?.filter(
-        (rec: any) => rec.booking?.member_id === user.id
+        (rec: any) => rec.booking?.member_id === whopUser.userId
       )
       return NextResponse.json({ data: filtered })
     }
@@ -77,25 +88,35 @@ export async function GET(request: Request) {
 // POST /api/recordings - Create recording
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient()
     const body = await request.json()
+    const { companyId } = body
 
-    // Get authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
+    // Require companyId for Whop multi-tenancy
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'companyId is required' },
+        { status: 400 }
+      )
+    }
+
+    // Get authenticated Whop user
+    const whopUser = await getWhopUserFromHeaders()
+    if (!whopUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const supabase = await createClient()
 
     // Get user role
     const { data: userData } = await supabase
       .from('users')
       .select('role')
-      .eq('id', user.id)
+      .eq('id', whopUser.userId)
       .single()
 
     // Only admins can create recordings
     if (userData?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
     // Set defaults for manual uploads

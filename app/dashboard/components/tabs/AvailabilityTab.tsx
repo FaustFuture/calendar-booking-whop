@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Plus, Clock, Trash2, Edit2, Calendar, DollarSign, Video, Link as LinkIcon, MapPin } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
-import { AvailabilityPattern, User } from '@/lib/types/database'
+import { AvailabilityPattern } from '@/lib/types/database'
 import { format } from 'date-fns'
 import CreateSlotDrawer from '../modals/CreateSlotDrawer'
 import ViewSlotsModal from '../modals/ViewSlotsModal'
@@ -11,79 +10,33 @@ import { AvailabilityPatternSkeleton } from '../shared/ListItemSkeleton'
 
 interface AvailabilityTabProps {
   roleOverride?: 'admin' | 'member'
+  companyId: string
   hideHeader?: boolean
   onEditPattern?: (pattern: AvailabilityPattern) => void
 }
 
-export default function AvailabilityTab({ roleOverride, hideHeader, onEditPattern }: AvailabilityTabProps) {
-  const [user, setUser] = useState<User | null>(null)
+export default function AvailabilityTab({ roleOverride, companyId, hideHeader, onEditPattern }: AvailabilityTabProps) {
   const [patterns, setPatterns] = useState<AvailabilityPattern[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedPattern, setSelectedPattern] = useState<AvailabilityPattern | null>(null)
   const [isViewSlotsModalOpen, setIsViewSlotsModalOpen] = useState(false)
-  const supabase = createClient()
 
   useEffect(() => {
-    loadUserAndSlots()
-  }, [roleOverride]) // Refetch when role changes
+    loadPatterns()
+  }, [roleOverride, companyId]) // Refetch when role or companyId changes
 
-  async function loadUserAndSlots() {
+  async function loadPatterns() {
     try {
       setLoading(true)
 
-      // Get current user
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-
-      let userId = authUser?.id
-      let userData = null
-
-      // Handle dev mode - use dev admin ID if no auth
-      if (!authUser) {
-        userId = '00000000-0000-0000-0000-000000000001'
-        // Try to get dev user profile
-        const { data: devUserData } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', userId)
-          .single()
-
-        userData = devUserData
-      } else {
-        // Get user profile for authenticated user
-        const { data: profileData } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', authUser.id)
-          .single()
-
-        userData = profileData
+      const response = await fetch(`/api/availability/patterns?companyId=${companyId}`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch availability patterns')
       }
 
-      setUser(userData)
-
-      // Load availability patterns based on role
-      const effectiveRole = roleOverride || userData?.role || 'admin'
-
-      if (effectiveRole === 'admin') {
-        // Admins see their own patterns
-        const { data: patternsData } = await supabase
-          .from('availability_patterns')
-          .select('*')
-          .eq('admin_id', userId)
-          .order('created_at', { ascending: false })
-
-        setPatterns(patternsData || [])
-      } else {
-        // Members see all active patterns
-        const { data: patternsData } = await supabase
-          .from('availability_patterns')
-          .select('*')
-          .eq('is_active', true)
-          .order('created_at', { ascending: false })
-
-        setPatterns(patternsData || [])
-      }
+      const data = await response.json()
+      setPatterns(data.patterns || [])
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
@@ -97,13 +50,14 @@ export default function AvailabilityTab({ roleOverride, hideHeader, onEditPatter
     }
 
     try {
-      const { error } = await supabase
-        .from('availability_patterns')
-        .delete()
-        .eq('id', patternId)
+      const response = await fetch(`/api/availability/patterns/${patternId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId }),
+      })
 
-      if (!error) {
-        loadUserAndSlots()
+      if (response.ok) {
+        loadPatterns()
       }
     } catch (error) {
       console.error('Error deleting pattern:', error)
@@ -161,7 +115,7 @@ export default function AvailabilityTab({ roleOverride, hideHeader, onEditPatter
     )
   }
 
-  const isAdmin = roleOverride ? roleOverride === 'admin' : user?.role === 'admin'
+  const isAdmin = roleOverride === 'admin'
 
   return (
     <div className={hideHeader ? 'space-y-6' : 'space-y-8'}>
@@ -317,8 +271,8 @@ export default function AvailabilityTab({ roleOverride, hideHeader, onEditPatter
         <CreateSlotDrawer
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          onSuccess={loadUserAndSlots}
-          adminId={user?.id || '00000000-0000-0000-0000-000000000001'}
+          onSuccess={loadPatterns}
+          companyId={companyId}
         />
       )}
 
@@ -327,10 +281,9 @@ export default function AvailabilityTab({ roleOverride, hideHeader, onEditPatter
         isOpen={isViewSlotsModalOpen}
         onClose={handleCloseViewSlots}
         pattern={selectedPattern}
-        currentUserId={user?.id || null}
-        currentUserEmail={user?.email || null}
+        companyId={companyId}
         onBookingSuccess={() => {
-          loadUserAndSlots()
+          loadPatterns()
           handleCloseViewSlots()
         }}
       />

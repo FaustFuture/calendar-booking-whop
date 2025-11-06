@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { User, ArrowLeft, ArrowRight, Check } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import { Drawer, DrawerHeader, DrawerContent, DrawerFooter } from '../shared/Drawer'
 import WizardStepper from '../shared/WizardStepper'
 import SegmentedControl, { SegmentOption } from '../shared/SegmentedControl'
@@ -15,7 +14,7 @@ interface CreateSlotDrawerProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
-  adminId: string
+  companyId: string
   patternId?: string
   editData?: {
     title: string
@@ -47,14 +46,13 @@ export default function CreateSlotDrawer({
   isOpen,
   onClose,
   onSuccess,
-  adminId,
+  companyId,
   patternId,
   editData,
 }: CreateSlotDrawerProps) {
   const [currentStep, setCurrentStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const supabase = createClient()
 
   // Form state
   const [title, setTitle] = useState('')
@@ -85,8 +83,8 @@ export default function CreateSlotDrawer({
 
   useEffect(() => {
     if (isOpen) {
-      setLoading(true)
-      loadUserData()
+      setLoading(false)
+      setConnectedEmail('Whop User')
 
       // Populate form if editing
       if (editData) {
@@ -143,30 +141,6 @@ export default function CreateSlotDrawer({
       }
     }
   }, [isOpen, editData])
-
-  async function loadUserData() {
-    try {
-      // Handle dev mode when adminId is a placeholder
-      if (adminId === '00000000-0000-0000-0000-000000000001') {
-        setConnectedEmail('admin@dev.local (Development Mode)')
-        setLoading(false)
-        return
-      }
-
-      const { data: userData } = await supabase
-        .from('users')
-        .select('email')
-        .eq('id', adminId)
-        .single()
-
-      setConnectedEmail(userData?.email || 'admin@example.com')
-    } catch (error) {
-      console.error('Error loading user data:', error)
-      setConnectedEmail('admin@example.com')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   function validateStep1(): boolean {
     const newErrors: Record<string, string> = {}
@@ -279,7 +253,7 @@ export default function CreateSlotDrawer({
       const response = await fetch(url, {
         method: patternId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ commonData, scheduleData, adminId }),
+        body: JSON.stringify({ commonData, scheduleData, companyId }),
       })
 
       const result = await response.json()

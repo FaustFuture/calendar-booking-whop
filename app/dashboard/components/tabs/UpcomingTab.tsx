@@ -2,113 +2,44 @@
 
 import { useEffect, useState } from 'react'
 import { Plus, Calendar, User as UserIcon, ExternalLink, X, Copy, Check, ChevronDown, ChevronUp, Video, Link as LinkIcon, MapPin, Clock } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
-import { BookingWithRelations, User } from '@/lib/types/database'
+import { BookingWithRelations } from '@/lib/types/database'
 import { format } from 'date-fns'
 import CreateBookingModal from '../modals/CreateBookingModal'
 import { BookingSkeleton } from '../shared/ListItemSkeleton'
 
 interface UpcomingTabProps {
   roleOverride?: 'admin' | 'member'
+  companyId: string
 }
 
-export default function UpcomingTab({ roleOverride }: UpcomingTabProps) {
-  const [user, setUser] = useState<User | null>(null)
+export default function UpcomingTab({ roleOverride, companyId }: UpcomingTabProps) {
   const [bookings, setBookings] = useState<BookingWithRelations[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [expandedBookings, setExpandedBookings] = useState<Set<string>>(new Set())
-  const supabase = createClient()
 
   useEffect(() => {
-    loadUserAndBookings()
-  }, [roleOverride]) // Refetch when role changes
+    loadBookings()
+  }, [roleOverride, companyId]) // Refetch when role or companyId changes
 
-  async function loadUserAndBookings() {
+  async function loadBookings() {
     try {
       setLoading(true)
 
-      // Get current user
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-
-      let userId = authUser?.id
-      let userData = null
-
-      // Handle dev mode - use dev admin ID if no auth
-      if (!authUser) {
-        userId = '00000000-0000-0000-0000-000000000001'
-        // Try to get dev user profile
-        const { data: devUserData } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', userId)
-          .single()
-
-        userData = devUserData
-      } else {
-        // Get user profile for authenticated user
-        const { data: profileData } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', authUser.id)
-          .single()
-
-        userData = profileData
+      const response = await fetch(`/api/bookings?companyId=${companyId}&status=upcoming`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch bookings')
       }
 
-      setUser(userData)
-
-      // Load bookings based on role
-      const effectiveRole = roleOverride || userData?.role || 'admin'
-
-      console.log('🔍 UpcomingTab Debug:', {
-        userId,
-        userRole: userData?.role,
-        effectiveRole,
-        roleOverride,
-      })
-
-      let query = supabase
-        .from('bookings')
-        .select(`
-          *,
-          member:member_id(id, name, email),
-          admin:admin_id(id, name, email),
-          slot:slot_id(start_time, end_time),
-          pattern:pattern_id(id, meeting_type, meeting_config)
-        `)
-        .eq('status', 'upcoming')
-        .order('created_at', { ascending: false })
-
-      if (effectiveRole === 'member') {
-        // Members only see their own bookings
-        console.log('📋 Filtering by member_id:', userId)
-        query = query.eq('member_id', userId)
-      } else {
-        console.log('👑 Admin view - showing all bookings')
-      }
-
-      const { data: bookingsData, error: queryError } = await query
-
-      console.log('📊 Bookings result:', {
-        count: bookingsData?.length || 0,
-        error: queryError?.message,
-        bookings: bookingsData?.map(b => ({ id: b.id, member_id: b.member_id, title: b.title }))
-      })
+      const data = await response.json()
 
       // Filter out bookings where end time has already passed (client-side safety check)
       const now = new Date()
-      const upcomingBookings = (bookingsData || []).filter(booking => {
+      const upcomingBookings = (data.bookings || []).filter((booking: BookingWithRelations) => {
         const endTime = booking.slot?.end_time || booking.booking_end_time
         if (!endTime) return true // Keep bookings without end time
         return new Date(endTime) >= now
-      })
-
-      console.log('🔍 Filtered past bookings:', {
-        total: bookingsData?.length || 0,
-        upcoming: upcomingBookings.length,
-        filtered: (bookingsData?.length || 0) - upcomingBookings.length
       })
 
       setBookings(upcomingBookings)
@@ -121,14 +52,18 @@ export default function UpcomingTab({ roleOverride }: UpcomingTabProps) {
 
   async function cancelBooking(bookingId: string) {
     try {
-      const { error } = await supabase
-        .from('bookings')
-        .update({ status: 'cancelled' })
-        .eq('id', bookingId)
+      const response = await fetch(`/api/bookings/${bookingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          status: 'cancelled'
+        }),
+      })
 
-      if (!error) {
+      if (response.ok) {
         // Reload bookings
-        loadUserAndBookings()
+        loadBookings()
       }
     } catch (error) {
       console.error('Error cancelling booking:', error)
@@ -190,7 +125,7 @@ export default function UpcomingTab({ roleOverride }: UpcomingTabProps) {
     )
   }
 
-  const isAdmin = roleOverride ? roleOverride === 'admin' : user?.role === 'admin'
+  const isAdmin = roleOverride === 'admin'
 
   return (
     <div className="space-y-6">
@@ -382,12 +317,12 @@ export default function UpcomingTab({ roleOverride }: UpcomingTabProps) {
       )}
 
       {/* Create Booking Modal */}
-      {user && user.role === 'admin' && (
+      {isAdmin && (
         <CreateBookingModal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          onSuccess={loadUserAndBookings}
-          adminId={user.id}
+          onSuccess={loadBookings}
+          companyId={companyId}
         />
       )}
     </div>

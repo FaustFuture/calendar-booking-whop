@@ -34,9 +34,13 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Verify state parameter (extract user ID)
-    const userId = state.split(':')[0]
-    if (!userId) {
+    // Verify state parameter (extract user ID and company ID)
+    // State format: userId:companyId:timestamp:random
+    const stateParts = state.split(':')
+    const userId = stateParts[0]
+    const companyId = stateParts[1]
+
+    if (!userId || !companyId) {
       return NextResponse.redirect(
         new URL('/auth/oauth-error?error=invalid_state&provider=zoom', request.url)
       )
@@ -44,23 +48,7 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createClient()
 
-    // Determine effective user ID (support dev mode)
-    const DEV_USER_ID = '00000000-0000-0000-0000-000000000001'
-    let effectiveUserId = userId
-
-    // Verify user is authenticated (skip check for dev mode)
-    if (userId !== DEV_USER_ID) {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user || user.id !== userId) {
-        return NextResponse.redirect(
-          new URL('/auth/oauth-error?error=unauthorized&provider=zoom', request.url)
-        )
-      }
-      effectiveUserId = user.id
-    }
+    // Use userId directly (from Whop authentication)
 
     // Exchange code for tokens
     const tokens = await zoomService.exchangeCodeForTokens(code)
@@ -75,7 +63,7 @@ export async function GET(request: NextRequest) {
     const { data: existingConnection } = await supabase
       .from('oauth_connections')
       .select('id')
-      .eq('user_id', effectiveUserId)
+      .eq('user_id', userId)
       .eq('provider', 'zoom')
       .single()
 
@@ -99,7 +87,7 @@ export async function GET(request: NextRequest) {
         console.error('Failed to update OAuth connection:', updateError)
         return NextResponse.redirect(
           new URL(
-            '/auth/oauth-error?error=database_error&provider=zoom',
+            `/dashboard/${companyId}/settings/integrations?error=database_error&provider=zoom`,
             request.url
           )
         )
@@ -109,7 +97,7 @@ export async function GET(request: NextRequest) {
       const { error: insertError } = await supabase
         .from('oauth_connections')
         .insert({
-          user_id: effectiveUserId,
+          user_id: userId,
           provider: 'zoom',
           access_token: tokens.access_token,
           refresh_token: tokens.refresh_token,
@@ -125,16 +113,16 @@ export async function GET(request: NextRequest) {
         console.error('Failed to create OAuth connection:', insertError)
         return NextResponse.redirect(
           new URL(
-            '/auth/oauth-error?error=database_error&provider=zoom',
+            `/dashboard/${companyId}/settings/integrations?error=database_error&provider=zoom`,
             request.url
           )
         )
       }
     }
 
-    // Redirect to OAuth success page (will auto-close popup)
+    // Redirect to OAuth success page with companyId
     return NextResponse.redirect(
-      new URL('/auth/oauth-success?provider=zoom', request.url)
+      new URL(`/auth/oauth-success?provider=zoom&companyId=${companyId}`, request.url)
     )
   } catch (error) {
     console.error('Zoom OAuth callback error:', error)

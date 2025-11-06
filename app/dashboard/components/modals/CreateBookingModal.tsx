@@ -23,13 +23,15 @@ interface CreateBookingModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
-  adminId: string
+  companyId: string
+  adminId?: string
 }
 
 export default function CreateBookingModal({
   isOpen,
   onClose,
   onSuccess,
+  companyId,
   adminId,
 }: CreateBookingModalProps) {
   const [loading, setLoading] = useState(false)
