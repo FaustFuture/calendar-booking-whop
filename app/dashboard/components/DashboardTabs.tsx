@@ -11,6 +11,7 @@ import CreateSlotDrawer from './modals/CreateSlotDrawer'
 import { createClient } from '@/lib/supabase/client'
 import { useEffect } from 'react'
 import { AvailabilityPattern } from '@/lib/types/database'
+import { updatePastBookingsStatus } from '@/lib/utils/bookings'
 
 export type TabType = 'availability' | 'upcoming' | 'past' | 'recordings'
 export type UserRole = 'admin' | 'member'
@@ -39,8 +40,18 @@ export default function DashboardTabs() {
   const supabase = createClient()
   const isAdmin = roleOverride === 'admin'
 
+  // Handle tab change and update past bookings when viewing booking-related tabs
+  function handleTabChange(tab: TabType) {
+    setActiveTab(tab)
+    if (tab === 'upcoming' || tab === 'past') {
+      updatePastBookingsStatus()
+    }
+  }
+
   useEffect(() => {
     loadUser()
+    // Update past bookings status on dashboard load
+    updatePastBookingsStatus()
   }, [])
 
   async function loadUser() {
@@ -109,7 +120,7 @@ export default function DashboardTabs() {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => handleTabChange(tab.id)}
                   className={`
                     flex items-center justify-center gap-2 px-4 py-3 font-semibold transition-colors rounded-lg text-sm
                     ${

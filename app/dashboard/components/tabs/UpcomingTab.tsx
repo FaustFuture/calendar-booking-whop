@@ -97,7 +97,21 @@ export default function UpcomingTab({ roleOverride }: UpcomingTabProps) {
         bookings: bookingsData?.map(b => ({ id: b.id, member_id: b.member_id, title: b.title }))
       })
 
-      setBookings(bookingsData || [])
+      // Filter out bookings where end time has already passed (client-side safety check)
+      const now = new Date()
+      const upcomingBookings = (bookingsData || []).filter(booking => {
+        const endTime = booking.slot?.end_time || booking.booking_end_time
+        if (!endTime) return true // Keep bookings without end time
+        return new Date(endTime) >= now
+      })
+
+      console.log('🔍 Filtered past bookings:', {
+        total: bookingsData?.length || 0,
+        upcoming: upcomingBookings.length,
+        filtered: (bookingsData?.length || 0) - upcomingBookings.length
+      })
+
+      setBookings(upcomingBookings)
     } catch (error) {
       console.error('Error loading bookings:', error)
     } finally {

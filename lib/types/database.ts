@@ -6,8 +6,15 @@ export type MeetingType = 'google_meet' | 'zoom' | 'manual_link' | 'location'
 
 export type OAuthProvider = 'google' | 'zoom'
 
+export type RecordingProvider = 'google' | 'zoom' | 'manual'
+
+export type RecordingStatus = 'processing' | 'available' | 'failed' | 'deleted'
+
+export type RecordingType = 'cloud' | 'local'
+
 export interface MeetingConfig {
   requiresGeneration?: boolean
+  enableRecording?: boolean
   customSettings?: Record<string, unknown>
 }
 
@@ -55,11 +62,25 @@ export interface Booking {
 
 export interface Recording {
   id: string
-  booking_id: string
+  booking_id?: string // Optional - can be standalone recording
   url: string
   title: string
   duration?: number // in seconds
   file_size?: number // in bytes
+  provider: RecordingProvider
+  external_id?: string // Provider's recording ID
+  meeting_provider_id?: string // Provider's meeting ID
+  playback_url?: string // Streaming URL (usually permanent)
+  download_url?: string // Download URL (may expire)
+  download_expires_at?: string // When download URL expires
+  transcript_url?: string // Transcript file URL
+  transcript_vtt_url?: string // VTT format transcript
+  status: RecordingStatus
+  recording_type: RecordingType
+  metadata?: Record<string, unknown> // Provider-specific data
+  auto_fetched: boolean // True if automatically fetched
+  fetched_at?: string // When recording was fetched
+  last_synced_at?: string // Last metadata sync
   uploaded_at: string
   created_at: string
 }

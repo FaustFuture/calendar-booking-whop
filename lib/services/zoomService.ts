@@ -51,6 +51,27 @@ export class ZoomService {
   }
 
   /**
+   * Generate OAuth authorization URL with recording scope
+   */
+  getAuthorizationUrlWithRecordings(state: string): string {
+    if (!this.clientId || !this.redirectUri) {
+      throw new Error(
+        'Zoom OAuth is not configured. Please set NEXT_PUBLIC_ZOOM_CLIENT_ID and ZOOM_REDIRECT_URI in your .env.local file.'
+      )
+    }
+
+    // Request recording scope for accessing cloud recordings
+    const params = new URLSearchParams({
+      client_id: this.clientId,
+      redirect_uri: this.redirectUri,
+      response_type: 'code',
+      state,
+    })
+
+    return `${ZOOM_OAUTH_URL}?${params.toString()}`
+  }
+
+  /**
    * Exchange authorization code for access tokens
    */
   async exchangeCodeForTokens(code: string): Promise<OAuthTokens> {
@@ -176,7 +197,7 @@ export class ZoomService {
           use_pmi: false,
           approval_type: 0, // Automatically approve
           audio: 'both', // Both telephony and VoIP
-          auto_recording: 'none',
+          auto_recording: details.enableRecording ? 'cloud' : 'none', // Auto-record to cloud if enabled
           waiting_room: true,
           meeting_authentication: false,
         },

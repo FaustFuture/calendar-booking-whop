@@ -7,6 +7,8 @@ export async function GET(request: Request) {
     const supabase = await createClient()
     const { searchParams } = new URL(request.url)
     const bookingId = searchParams.get('booking_id')
+    const provider = searchParams.get('provider') // Filter by provider (google, zoom, manual)
+    const status = searchParams.get('status') // Filter by status (processing, available, failed)
 
     // Get authenticated user
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -30,6 +32,16 @@ export async function GET(request: Request) {
     // Filter by booking if provided
     if (bookingId) {
       query = query.eq('booking_id', bookingId)
+    }
+
+    // Filter by provider if provided
+    if (provider && ['google', 'zoom', 'manual'].includes(provider)) {
+      query = query.eq('provider', provider)
+    }
+
+    // Filter by status if provided
+    if (status && ['processing', 'available', 'failed', 'deleted'].includes(status)) {
+      query = query.eq('status', status)
     }
 
     const { data, error } = await query
@@ -86,9 +98,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    // Set defaults for manual uploads
+    const recordingData = {
+      ...body,
+      provider: body.provider || 'manual',
+      status: body.status || 'available',
+      recording_type: body.recording_type || 'cloud',
+      auto_fetched: body.auto_fetched || false,
+    }
+
     const { data, error } = await supabase
       .from('recordings')
-      .insert(body)
+      .insert(recordingData)
       .select()
       .single()
 

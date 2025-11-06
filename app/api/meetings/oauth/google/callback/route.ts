@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
     }
 
     // In dev mode, skip user ID validation
-    if (!isDevMode && user.id !== userId) {
+    if (!isDevMode && user?.id !== userId) {
       return NextResponse.redirect(
         new URL('/auth/oauth-error?error=unauthorized&provider=google', request.url)
       )

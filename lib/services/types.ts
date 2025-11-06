@@ -7,6 +7,7 @@ export interface MeetingDetails {
   endTime: string
   attendees: string[] // Email addresses
   timezone?: string
+  enableRecording?: boolean // Enable auto-recording
 }
 
 export interface MeetingResult {

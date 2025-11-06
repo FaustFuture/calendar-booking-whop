@@ -59,6 +59,40 @@ export class GoogleMeetService {
   }
 
   /**
+   * Generate OAuth authorization URL with recording access
+   * Note: This requires the 'drive.meet.readonly' restricted scope which needs verification
+   * See: https://developers.google.com/meet/api/guides/recording
+   */
+  getAuthorizationUrlWithRecordings(state: string): string {
+    if (!this.clientId || !this.redirectUri) {
+      throw new Error(
+        'Google OAuth is not configured. Please set NEXT_PUBLIC_GOOGLE_CLIENT_ID and GOOGLE_REDIRECT_URI in your .env.local file.'
+      )
+    }
+
+    const scopes = [
+      'https://www.googleapis.com/auth/calendar.events',
+      'https://www.googleapis.com/auth/userinfo.email',
+      // Restricted scope - requires Google verification process
+      // Use 'drive.readonly' as fallback if drive.meet.readonly is not verified yet
+      'https://www.googleapis.com/auth/drive.meet.readonly',
+      // Alternative: 'https://www.googleapis.com/auth/drive.readonly', // Broader access
+    ]
+
+    const params = new URLSearchParams({
+      client_id: this.clientId,
+      redirect_uri: this.redirectUri,
+      response_type: 'code',
+      scope: scopes.join(' '),
+      access_type: 'offline', // Request refresh token
+      prompt: 'consent', // Force consent screen to get refresh token
+      state,
+    })
+
+    return `${GOOGLE_OAUTH_URL}?${params.toString()}`
+  }
+
+  /**
    * Exchange authorization code for access tokens
    */
   async exchangeCodeForTokens(code: string): Promise<OAuthTokens> {
