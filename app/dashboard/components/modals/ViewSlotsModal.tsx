@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react'
 import { X, Calendar, Clock, DollarSign, User, Video, Link as LinkIcon, MapPin } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { AvailabilityPattern } from '@/lib/types/database'
-import { format, addDays, startOfWeek, isSameDay } from 'date-fns'
+import { format, addDays, startOfWeek, isSameDay, parse, setHours, setMinutes } from 'date-fns'
 
 interface Slot {
-  id: string
+  id: string // Format: pattern_id:YYYY-MM-DD:HH:mm
   start_time: string
   end_time: string
   is_booked: boolean
@@ -43,16 +43,77 @@ export default function ViewSlotsModal({ isOpen, onClose, pattern, onBookingSucc
       // Calculate week range
       const weekEnd = addDays(currentWeekStart, 7)
 
-      // Fetch slots for this pattern within the week
-      const { data: slotsData } = await supabase
-        .from('slots')
-        .select('id, start_time, end_time, is_booked')
-        .eq('pattern_id', pattern.id)
-        .gte('start_time', currentWeekStart.toISOString())
-        .lt('start_time', weekEnd.toISOString())
-        .order('start_time', { ascending: true })
+      // Generate slots dynamically from pattern's weekly_schedule
+      const generatedSlots: Slot[] = []
+      const weeklySchedule = pattern.weekly_schedule as Record<string, Array<{ start: string; end: string }>>
 
-      setSlots(slotsData || [])
+      // Map day names to date-fns day indices (Mon=1, Tue=2, etc.)
+      const dayMap: Record<string, number> = {
+        'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6, 'Sun': 0
+      }
+
+      // Iterate through each day in the current week
+      for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+        const currentDay = addDays(currentWeekStart, dayOffset)
+        const dayName = format(currentDay, 'EEE') // Mon, Tue, etc.
+
+        // Check if this day has availability in the pattern
+        const daySchedule = weeklySchedule[dayName]
+        if (!daySchedule || !Array.isArray(daySchedule)) continue
+
+        // Generate slots for each time range
+        for (const timeRange of daySchedule) {
+          const startTime = timeRange.start // e.g., "09:00"
+          const endTime = timeRange.end     // e.g., "17:00"
+
+          // Parse start and end times
+          const [startHour, startMin] = startTime.split(':').map(Number)
+          const [endHour, endMin] = endTime.split(':').map(Number)
+
+          let slotStart = setMinutes(setHours(currentDay, startHour), startMin)
+          const rangeEnd = setMinutes(setHours(currentDay, endHour), endMin)
+
+          // Generate slots in increments of duration_minutes
+          while (slotStart < rangeEnd) {
+            const slotEnd = addDays(slotStart, 0)
+            slotEnd.setMinutes(slotEnd.getMinutes() + pattern.duration_minutes)
+
+            if (slotEnd <= rangeEnd) {
+              const slotId = `${pattern.id}:${format(slotStart, 'yyyy-MM-dd:HH:mm')}`
+              generatedSlots.push({
+                id: slotId,
+                start_time: slotStart.toISOString(),
+                end_time: slotEnd.toISOString(),
+                is_booked: false
+              })
+            }
+
+            slotStart = slotEnd
+          }
+        }
+      }
+
+      // Fetch existing bookings for this pattern to mark booked slots
+      const { data: bookingsData } = await supabase
+        .from('bookings')
+        .select('slot_id, status')
+        .eq('pattern_id', pattern.id)
+        .in('status', ['upcoming', 'completed'])
+
+      // Create a set of booked slot IDs for quick lookup
+      const bookedSlotIds = new Set(
+        (bookingsData || [])
+          .filter(booking => booking.slot_id) // Only process bookings with slot_id
+          .map(booking => booking.slot_id)
+      )
+
+      // Mark slots as booked if they match an existing booking
+      const slotsWithBookingStatus = generatedSlots.map(slot => ({
+        ...slot,
+        is_booked: bookedSlotIds.has(slot.id)
+      }))
+
+      setSlots(slotsWithBookingStatus)
     } catch (error) {
       console.error('Error loading slots:', error)
     } finally {
@@ -73,35 +134,30 @@ export default function ViewSlotsModal({ isOpen, onClose, pattern, onBookingSucc
         return
       }
 
-      // Create booking
+      // Create booking with slot_id containing the time information
       const { error } = await supabase
         .from('bookings')
         .insert({
-          slot_id: selectedSlot.id,
+          slot_id: selectedSlot.id, // Format: pattern_id:YYYY-MM-DD:HH:mm
+          pattern_id: pattern.id,
           member_id: user.id,
           admin_id: pattern.admin_id,
           title: pattern.title,
           description: pattern.description,
-          price: pattern.price || 0,
           status: 'upcoming',
         })
 
       if (error) throw error
 
-      // Mark slot as booked
-      await supabase
-        .from('slots')
-        .update({ is_booked: true })
-        .eq('id', selectedSlot.id)
-
       alert('Booking successful!')
       onBookingSuccess?.()
-      onClose()
+      loadSlots() // Reload slots to reflect the new booking
     } catch (error) {
       console.error('Error booking slot:', error)
       alert('Failed to book slot. Please try again.')
     } finally {
       setBooking(false)
+      setSelectedSlot(null)
     }
   }
 
