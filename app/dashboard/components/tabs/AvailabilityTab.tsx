@@ -327,6 +327,8 @@ export default function AvailabilityTab({ roleOverride, hideHeader, onEditPatter
         isOpen={isViewSlotsModalOpen}
         onClose={handleCloseViewSlots}
         pattern={selectedPattern}
+        currentUserId={user?.id || null}
+        currentUserEmail={user?.email || null}
         onBookingSuccess={() => {
           loadUserAndSlots()
           handleCloseViewSlots()

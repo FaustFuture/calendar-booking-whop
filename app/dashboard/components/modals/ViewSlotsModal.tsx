@@ -18,16 +18,35 @@ interface ViewSlotsModalProps {
   onClose: () => void
   pattern: AvailabilityPattern | null
   onBookingSuccess?: () => void
+  currentUserId?: string | null  // Pass the current user ID from parent
+  currentUserEmail?: string | null  // Pass the current user email from parent
 }
 
-export default function ViewSlotsModal({ isOpen, onClose, pattern, onBookingSuccess }: ViewSlotsModalProps) {
+export default function ViewSlotsModal({
+  isOpen,
+  onClose,
+  pattern,
+  onBookingSuccess,
+  currentUserId = null,
+  currentUserEmail = null
+}: ViewSlotsModalProps) {
   const [slots, setSlots] = useState<Slot[]>([])
   const [loading, setLoading] = useState(false)
   const [booking, setBooking] = useState(false)
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null)
   const [currentWeekStart, setCurrentWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }))
+  const [guestName, setGuestName] = useState('')
+  const [guestEmail, setGuestEmail] = useState('')
+  const isGuest = !currentUserId  // Determine from passed prop
   const supabase = createClient()
 
+  console.log('🔐 ViewSlotsModal user context:', {
+    currentUserId,
+    currentUserEmail,
+    isGuest
+  })
+
+  // Load slots when modal opens
   useEffect(() => {
     if (isOpen && pattern) {
       loadSlots()
@@ -96,21 +115,21 @@ export default function ViewSlotsModal({ isOpen, onClose, pattern, onBookingSucc
       // Fetch existing bookings for this pattern to mark booked slots
       const { data: bookingsData } = await supabase
         .from('bookings')
-        .select('slot_id, status')
+        .select('booking_start_time, booking_end_time, status')
         .eq('pattern_id', pattern.id)
         .in('status', ['upcoming', 'completed'])
 
-      // Create a set of booked slot IDs for quick lookup
-      const bookedSlotIds = new Set(
+      // Create a set of booked time slots for quick lookup
+      const bookedTimeSlots = new Set(
         (bookingsData || [])
-          .filter(booking => booking.slot_id) // Only process bookings with slot_id
-          .map(booking => booking.slot_id)
+          .filter(booking => booking.booking_start_time) // Only process bookings with time
+          .map(booking => new Date(booking.booking_start_time).toISOString())
       )
 
       // Mark slots as booked if they match an existing booking
       const slotsWithBookingStatus = generatedSlots.map(slot => ({
         ...slot,
-        is_booked: bookedSlotIds.has(slot.id)
+        is_booked: bookedTimeSlots.has(new Date(slot.start_time).toISOString())
       }))
 
       setSlots(slotsWithBookingStatus)
@@ -124,34 +143,86 @@ export default function ViewSlotsModal({ isOpen, onClose, pattern, onBookingSucc
   async function handleBookSlot() {
     if (!selectedSlot || !pattern) return
 
+    console.log('🎟️ Booking attempt:', {
+      hasUser: !!currentUserId,
+      userId: currentUserId,
+      isGuest
+    })
+
+    // Validate guest information if booking as guest
+    if (isGuest) {
+      if (!guestName.trim() || !guestEmail.trim()) {
+        alert('Please enter your name and email to book')
+        return
+      }
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(guestEmail)) {
+        alert('Please enter a valid email address')
+        return
+      }
+    }
+
     try {
       setBooking(true)
 
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        alert('You must be logged in to book a slot')
-        return
+      // Prepare booking data
+      const bookingData: any = {
+        pattern_id: pattern.id,
+        admin_id: pattern.admin_id,
+        title: pattern.title,
+        description: pattern.description,
+        status: 'upcoming',
+        booking_start_time: selectedSlot.start_time,
+        booking_end_time: selectedSlot.end_time,
       }
 
-      // Create booking with slot_id containing the time information
-      const { error } = await supabase
-        .from('bookings')
-        .insert({
-          slot_id: selectedSlot.id, // Format: pattern_id:YYYY-MM-DD:HH:mm
-          pattern_id: pattern.id,
-          member_id: user.id,
-          admin_id: pattern.admin_id,
-          title: pattern.title,
-          description: pattern.description,
-          status: 'upcoming',
+      // Add member_id or guest info
+      if (currentUserId && !isGuest) {
+        // Logged-in member booking
+        bookingData.member_id = currentUserId
+        console.log('👤 Creating member booking:', {
+          member_id: currentUserId,
+          email: currentUserEmail,
+          isGuest,
         })
+      } else {
+        // Guest booking
+        bookingData.guest_name = guestName.trim()
+        bookingData.guest_email = guestEmail.trim()
+        console.log('🎫 Creating guest booking:', {
+          guest_name: guestName,
+          guest_email: guestEmail,
+          isGuest,
+        })
+      }
 
-      if (error) throw error
+      console.log('📤 Booking data being sent:', bookingData)
 
-      alert('Booking successful!')
+      // Create booking via API (this triggers meeting link generation)
+      const response = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(bookingData),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create booking')
+      }
+
+      const result = await response.json()
+      console.log('✅ Booking created:', result.data)
+
+      alert('Booking successful! You will receive a confirmation email.')
       onBookingSuccess?.()
       loadSlots() // Reload slots to reflect the new booking
+
+      // Reset guest form
+      setGuestName('')
+      setGuestEmail('')
     } catch (error) {
       console.error('Error booking slot:', error)
       alert('Failed to book slot. Please try again.')
@@ -301,30 +372,74 @@ export default function ViewSlotsModal({ isOpen, onClose, pattern, onBookingSucc
 
         {/* Footer */}
         {selectedSlot && (
-          <div className="p-6 border-t border-zinc-800 bg-zinc-900/50">
-            <div className="flex items-center justify-between gap-4">
-              <div className="text-sm">
-                <p className="text-zinc-400 mb-1">Selected time:</p>
-                <p className="text-white font-semibold">
-                  {format(new Date(selectedSlot.start_time), 'EEEE, MMMM d, yyyy')} at{' '}
-                  {format(new Date(selectedSlot.start_time), 'h:mm a')}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setSelectedSlot(null)}
-                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleBookSlot}
-                  disabled={booking}
-                  className="px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {booking ? 'Booking...' : 'Book Slot'}
-                </button>
-              </div>
+          <div className="p-6 border-t border-zinc-800 bg-zinc-900/50 space-y-4">
+            {/* Selected time info */}
+            <div className="text-sm">
+              <p className="text-zinc-400 mb-1">Selected time:</p>
+              <p className="text-white font-semibold">
+                {format(new Date(selectedSlot.start_time), 'EEEE, MMMM d, yyyy')} at{' '}
+                {format(new Date(selectedSlot.start_time), 'h:mm a')}
+              </p>
+            </div>
+
+            {/* User information */}
+            <div className="space-y-3 pt-2 border-t border-zinc-800">
+              {isGuest ? (
+                <>
+                  <p className="text-sm font-medium text-zinc-300">Your Information</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-zinc-400 mb-1">Name *</label>
+                      <input
+                        type="text"
+                        value={guestName}
+                        onChange={(e) => setGuestName(e.target.value)}
+                        placeholder="John Doe"
+                        className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:border-emerald-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-zinc-400 mb-1">Email *</label>
+                      <input
+                        type="email"
+                        value={guestEmail}
+                        onChange={(e) => setGuestEmail(e.target.value)}
+                        placeholder="john@example.com"
+                        className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:border-emerald-500"
+                        required
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center gap-2 text-sm">
+                  <User className="w-4 h-4 text-emerald-400" />
+                  <span className="text-zinc-300">Booking as:</span>
+                  <span className="text-white font-medium">{currentUserEmail || 'Logged in user'}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => {
+                  setSelectedSlot(null)
+                  setGuestName('')
+                  setGuestEmail('')
+                }}
+                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors flex-1"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBookSlot}
+                disabled={booking}
+                className="px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-1"
+              >
+                {booking ? 'Booking...' : 'Book Slot'}
+              </button>
             </div>
           </div>
         )}

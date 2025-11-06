@@ -37,13 +37,18 @@ export interface AvailabilitySlot {
 export interface Booking {
   id: string
   slot_id?: string
-  member_id: string
+  pattern_id?: string
+  member_id?: string
   admin_id: string
   title: string
   description?: string
   status: BookingStatus
   meeting_url?: string
   notes?: string
+  guest_name?: string
+  guest_email?: string
+  booking_start_time?: string
+  booking_end_time?: string
   created_at: string
   updated_at: string
 }
@@ -98,6 +103,7 @@ export interface BookingWithRelations extends Booking {
   member?: User
   admin?: User
   slot?: AvailabilitySlot
+  pattern?: AvailabilityPattern
   recordings?: Recording[]
 }
 

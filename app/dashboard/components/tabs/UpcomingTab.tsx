@@ -62,24 +62,40 @@ export default function UpcomingTab({ roleOverride }: UpcomingTabProps) {
       // Load bookings based on role
       const effectiveRole = roleOverride || userData?.role || 'admin'
 
+      console.log('🔍 UpcomingTab Debug:', {
+        userId,
+        userRole: userData?.role,
+        effectiveRole,
+        roleOverride,
+      })
+
       let query = supabase
         .from('bookings')
         .select(`
           *,
           member:member_id(id, name, email),
           admin:admin_id(id, name, email),
-          slot:slot_id(start_time, end_time)
+          slot:slot_id(start_time, end_time),
+          pattern:pattern_id(id, meeting_type, meeting_config)
         `)
         .eq('status', 'upcoming')
         .order('created_at', { ascending: false })
 
       if (effectiveRole === 'member') {
         // Members only see their own bookings
+        console.log('📋 Filtering by member_id:', userId)
         query = query.eq('member_id', userId)
+      } else {
+        console.log('👑 Admin view - showing all bookings')
       }
-      // Admins see all bookings (no filter needed)
 
-      const { data: bookingsData } = await query
+      const { data: bookingsData, error: queryError } = await query
+
+      console.log('📊 Bookings result:', {
+        count: bookingsData?.length || 0,
+        error: queryError?.message,
+        bookings: bookingsData?.map(b => ({ id: b.id, member_id: b.member_id, title: b.title }))
+      })
 
       setBookings(bookingsData || [])
     } catch (error) {
@@ -200,7 +216,14 @@ export default function UpcomingTab({ roleOverride }: UpcomingTabProps) {
         <div className="grid gap-4">
           {bookings.map((booking) => {
             const isExpanded = expandedBookings.has(booking.id)
-            const meetingDisplay = getMeetingTypeDisplay(booking.slot?.meeting_type || 'google_meet')
+
+            // Get start and end times from either slot or booking times
+            const startTime = booking.slot?.start_time || booking.booking_start_time
+            const endTime = booking.slot?.end_time || booking.booking_end_time
+
+            // Get meeting type from slot or pattern
+            const meetingType = booking.slot?.meeting_type || booking.pattern?.meeting_type
+            const meetingDisplay = getMeetingTypeDisplay(meetingType)
             const MeetingIcon = meetingDisplay.icon
 
             return (
@@ -221,21 +244,21 @@ export default function UpcomingTab({ roleOverride }: UpcomingTabProps) {
                         </h3>
 
                         {/* Date, Time, Duration */}
-                        {booking.slot && (
+                        {startTime && (
                           <div className="flex items-center gap-2 text-sm text-zinc-400 mb-2">
                             <span className="font-medium text-white">
-                              {format(new Date(booking.slot.start_time), 'EEEE, MMMM d, yyyy')}
+                              {format(new Date(startTime), 'EEEE, MMMM d, yyyy')}
                             </span>
                             <span className="text-zinc-600">•</span>
                             <span className="flex items-center gap-1">
                               <Clock className="w-3.5 h-3.5" />
-                              {format(new Date(booking.slot.start_time), 'h:mm a')}
+                              {format(new Date(startTime), 'h:mm a')}
                             </span>
-                            {booking.slot.end_time && (
+                            {endTime && (
                               <>
                                 <span className="text-zinc-600">•</span>
                                 <span>
-                                  {Math.round((new Date(booking.slot.end_time).getTime() - new Date(booking.slot.start_time).getTime()) / (1000 * 60))} min
+                                  {Math.round((new Date(endTime).getTime() - new Date(startTime).getTime()) / (1000 * 60))} min
                                 </span>
                               </>
                             )}
@@ -248,14 +271,14 @@ export default function UpcomingTab({ roleOverride }: UpcomingTabProps) {
                             <MeetingIcon className="w-4 h-4" />
                             {meetingDisplay.label}
                           </span>
-                          {isAdmin && booking.member && (
+                          {isAdmin && (booking.member || booking.guest_name) && (
                             <>
                               <span className="text-zinc-600">•</span>
                               <span className="flex items-center gap-1.5 text-zinc-300">
                                 <UserIcon className="w-4 h-4 text-zinc-400" />
-                                {booking.member.name}
-                                {booking.member.email && (
-                                  <span className="text-zinc-500">({booking.member.email})</span>
+                                {booking.member ? booking.member.name : booking.guest_name}
+                                {(booking.member?.email || booking.guest_email) && (
+                                  <span className="text-zinc-500">({booking.member?.email || booking.guest_email})</span>
                                 )}
                               </span>
                             </>
