@@ -3,6 +3,13 @@ import { NextResponse } from 'next/server'
 import { meetingService } from '@/lib/services/meetingService'
 import { OAuthProvider } from '@/lib/types/database'
 
+// Helper function to map meeting_type to OAuth provider
+function getOAuthProvider(meetingType: string): OAuthProvider {
+  if (meetingType === 'google_meet') return 'google'
+  if (meetingType === 'zoom') return 'zoom'
+  throw new Error(`Invalid meeting type: ${meetingType}`)
+}
+
 // GET /api/bookings - List bookings
 export async function GET(request: Request) {
   try {
@@ -143,9 +150,15 @@ export async function POST(request: Request) {
         if (adminData?.email) attendeeEmails.push(adminData.email)
 
         // Generate meeting link
+        const provider = getOAuthProvider(meetingData.meeting_type)
+        console.log('🔗 Mapping meeting type to provider:', {
+          meetingType: meetingData.meeting_type,
+          provider,
+        })
+
         const meetingResult = await meetingService.generateMeetingLink(
           body.admin_id, // Use admin's OAuth connection
-          meetingData.meeting_type as OAuthProvider,
+          provider,
           {
             title: body.title || meetingData.title || 'Meeting',
             description: body.description || meetingData.description,
