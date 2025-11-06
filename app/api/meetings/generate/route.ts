@@ -9,7 +9,7 @@ import { createClient } from '@/lib/supabase/server'
 import { meetingService } from '@/lib/services/meetingService'
 import { OAuthProvider } from '@/lib/types/database'
 import { MeetingServiceError } from '@/lib/services/types'
-import { getWhopUserFromHeaders } from '@/lib/auth'
+import { requireWhopAuth, syncWhopUserToSupabase } from '@/lib/auth/whop'
 
 interface GenerateMeetingRequest {
   provider: OAuthProvider
@@ -35,11 +35,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get authenticated Whop user
-    const whopUser = await getWhopUserFromHeaders()
-    if (!whopUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    // Verify Whop authentication and company access
+    const whopUser = await requireWhopAuth(body.companyId)
+
+    // Sync user to Supabase
+    await syncWhopUserToSupabase(whopUser)
 
     const supabase = await createClient()
 
@@ -133,11 +133,11 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get authenticated Whop user
-    const whopUser = await getWhopUserFromHeaders()
-    if (!whopUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    // Verify Whop authentication and company access
+    const whopUser = await requireWhopAuth(companyId)
+
+    // Sync user to Supabase
+    await syncWhopUserToSupabase(whopUser)
 
     const supabase = await createClient()
     const provider = request.nextUrl.searchParams.get('provider') as OAuthProvider

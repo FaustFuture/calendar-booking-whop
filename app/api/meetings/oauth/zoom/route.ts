@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getWhopUserFromHeaders } from '@/lib/auth'
+import { requireWhopAuth, syncWhopUserToSupabase } from '@/lib/auth/whop'
 import { zoomService } from '@/lib/services/zoomService'
 
 export async function GET(request: NextRequest) {
@@ -21,11 +21,11 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get authenticated Whop user
-    const whopUser = await getWhopUserFromHeaders()
-    if (!whopUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    // Verify Whop authentication and company access
+    const whopUser = await requireWhopAuth(companyId)
+
+    // Sync user to Supabase
+    await syncWhopUserToSupabase(whopUser)
 
     // Generate state parameter for CSRF protection
     // Include companyId in state to validate on callback

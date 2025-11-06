@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { meetingService } from '@/lib/services/meetingService'
 import { OAuthProvider } from '@/lib/types/database'
-import { getWhopUserFromHeaders } from '@/lib/auth'
+import { requireWhopAuth, syncWhopUserToSupabase } from '@/lib/auth/whop'
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,11 +25,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get authenticated Whop user
-    const whopUser = await getWhopUserFromHeaders()
-    if (!whopUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    // Verify Whop authentication and company access
+    const whopUser = await requireWhopAuth(companyId)
+
+    // Sync user to Supabase
+    await syncWhopUserToSupabase(whopUser)
 
     const supabase = await createClient()
 

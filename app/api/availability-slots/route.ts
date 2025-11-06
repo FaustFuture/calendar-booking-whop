@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { getWhopUserFromHeaders } from '@/lib/auth'
+import { requireWhopAuth, syncWhopUserToSupabase, verifyWhopUser } from '@/lib/auth/whop'
 
 // GET /api/availability-slots - List availability slots
 export async function GET(request: Request) {
@@ -19,7 +19,14 @@ export async function GET(request: Request) {
     }
 
     // Optional auth - guests can view availability
-    const whopUser = await getWhopUserFromHeaders()
+    let whopUser = null
+    try {
+      whopUser = await requireWhopAuth(companyId)
+      await syncWhopUserToSupabase(whopUser)
+    } catch (error) {
+      // Guest viewing allowed - authentication not required
+      console.log('Guest viewing availability')
+    }
 
     const supabase = await createClient()
     let query = supabase
@@ -67,21 +74,14 @@ export async function POST(request: Request) {
       )
     }
 
-    // Get authenticated Whop user
-    const whopUser = await getWhopUserFromHeaders()
-    if (!whopUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    // Verify Whop authentication and company access
+    const whopUser = await requireWhopAuth(companyId)
 
-    // Get user role from Supabase
-    const { data: userData } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', whopUser.userId)
-      .single()
+    // Sync user to Supabase
+    await syncWhopUserToSupabase(whopUser)
 
     // Only admins can create availability slots
-    if (userData?.role !== 'admin') {
+    if (whopUser.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 

@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { meetingService } from '@/lib/services/meetingService'
 import { OAuthProvider } from '@/lib/types/database'
-import { getWhopUserFromHeaders, extractCompanyId } from '@/lib/auth'
+import { requireWhopAuth, syncWhopUserToSupabase } from '@/lib/auth/whop'
 
 // Helper function to map meeting_type to OAuth provider
 function getOAuthProvider(meetingType: string): OAuthProvider {
@@ -26,20 +26,13 @@ export async function GET(request: Request) {
       )
     }
 
-    // Get authenticated Whop user
-    const whopUser = await getWhopUserFromHeaders()
-    if (!whopUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    // Verify Whop authentication and company access
+    const whopUser = await requireWhopAuth(companyId)
+
+    // Sync user to Supabase
+    await syncWhopUserToSupabase(whopUser)
 
     const supabase = await createClient()
-
-    // Get user role from Supabase
-    const { data: userData } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', whopUser.userId)
-      .single()
 
     let query = supabase
       .from('bookings')
@@ -57,7 +50,7 @@ export async function GET(request: Request) {
     }
 
     // Members only see their own bookings
-    if (userData?.role === 'member') {
+    if (whopUser.role === 'member') {
       query = query.eq('member_id', whopUser.userId)
     }
 
@@ -91,8 +84,16 @@ export async function POST(request: Request) {
       )
     }
 
-    // Optional: Get Whop user if authenticated (guests allowed)
-    const whopUser = await getWhopUserFromHeaders()
+    // Optional: Verify Whop user if authenticated (guests allowed for bookings)
+    let whopUser = null
+    try {
+      whopUser = await requireWhopAuth(companyId)
+      // Sync authenticated user to Supabase
+      await syncWhopUserToSupabase(whopUser)
+    } catch (error) {
+      // Guest booking allowed - authentication not required for creating bookings
+      console.log('Guest booking (no authentication)')
+    }
 
     // Get slot or pattern details to check if meeting generation is needed
     let meetingUrl = body.meeting_url || null

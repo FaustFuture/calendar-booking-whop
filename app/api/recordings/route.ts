@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { getWhopUserFromHeaders } from '@/lib/auth'
+import { requireWhopAuth, syncWhopUserToSupabase } from '@/lib/auth/whop'
 
 // GET /api/recordings - List recordings
 export async function GET(request: Request) {
@@ -19,11 +19,11 @@ export async function GET(request: Request) {
       )
     }
 
-    // Get authenticated Whop user
-    const whopUser = await getWhopUserFromHeaders()
-    if (!whopUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    // Verify Whop authentication and company access
+    const whopUser = await requireWhopAuth(companyId)
+
+    // Sync user to Supabase
+    await syncWhopUserToSupabase(whopUser)
 
     const supabase = await createClient()
 
@@ -61,15 +61,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Get user role
-    const { data: userData } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', whopUser.userId)
-      .single()
-
     // Members only see recordings for their bookings
-    if (userData?.role === 'member') {
+    if (whopUser.role === 'member') {
       const filtered = data?.filter(
         (rec: any) => rec.booking?.member_id === whopUser.userId
       )
@@ -99,23 +92,16 @@ export async function POST(request: Request) {
       )
     }
 
-    // Get authenticated Whop user
-    const whopUser = await getWhopUserFromHeaders()
-    if (!whopUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    // Verify Whop authentication and company access
+    const whopUser = await requireWhopAuth(companyId)
+
+    // Sync user to Supabase
+    await syncWhopUserToSupabase(whopUser)
 
     const supabase = await createClient()
 
-    // Get user role
-    const { data: userData } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', whopUser.userId)
-      .single()
-
     // Only admins can create recordings
-    if (userData?.role !== 'admin') {
+    if (whopUser.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 

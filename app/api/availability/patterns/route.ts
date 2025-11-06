@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { getWhopUserFromHeaders } from '@/lib/auth'
+import { requireWhopAuth, syncWhopUserToSupabase } from '@/lib/auth/whop'
 
 export async function POST(request: Request) {
   try {
@@ -25,21 +25,14 @@ export async function POST(request: Request) {
       )
     }
 
-    // Get authenticated Whop user
-    const whopUser = await getWhopUserFromHeaders()
-    if (!whopUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    // Verify Whop authentication and company access
+    const whopUser = await requireWhopAuth(companyId)
 
-    // Get user role from Supabase
-    const { data: userData } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', whopUser.userId)
-      .single()
+    // Sync user to Supabase
+    await syncWhopUserToSupabase(whopUser)
 
     // Only admins can create availability patterns
-    if (userData?.role !== 'admin') {
+    if (whopUser.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
@@ -112,34 +105,29 @@ export async function GET(request: Request) {
       )
     }
 
-    // Get authenticated Whop user
-    const whopUser = await getWhopUserFromHeaders()
-    if (!whopUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    // Verify Whop authentication and company access
+    const whopUser = await requireWhopAuth(companyId)
+
+    // Sync user to Supabase
+    await syncWhopUserToSupabase(whopUser)
 
     const supabase = await createClient()
 
-    // Get user role from Supabase
-    const { data: userData } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', whopUser.userId)
-      .single()
-
-    // Only admins can fetch availability patterns
-    if (userData?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
-    }
-
-    // Use provided adminId or current user's ID
-    const effectiveAdminId = adminId || whopUser.userId
-
-    const { data: patterns, error } = await supabase
+    let query = supabase
       .from('availability_patterns')
       .select('*')
-      .eq('admin_id', effectiveAdminId)
-      .order('created_at', { ascending: false })
+
+    // Admins see their own patterns, members see all active patterns
+    if (whopUser.role === 'admin') {
+      // Use provided adminId or current user's ID
+      const effectiveAdminId = adminId || whopUser.userId
+      query = query.eq('admin_id', effectiveAdminId)
+    } else {
+      // Members can only see active patterns
+      query = query.eq('is_active', true)
+    }
+
+    const { data: patterns, error } = await query.order('created_at', { ascending: false })
 
     if (error) {
       console.error('Database error:', error)
