@@ -100,6 +100,7 @@ export async function verifyWhopUser(companyId: string, requireAccess = false): 
     // Optionally check access if required (for sensitive operations)
     // Note: This requires a valid WHOP_API_KEY to be set
     let access = null
+    let accessCheckFailed = false
     if (requireAccess) {
       console.log('[Whop Auth] Checking company access...')
 
@@ -111,6 +112,7 @@ export async function verifyWhopUser(companyId: string, requireAccess = false): 
         access = await whopsdk.users.checkAccess(effectiveCompanyId, { id: userId }).catch((err) => {
           console.error('[Whop Auth] Failed to check access:', err)
           console.warn('[Whop Auth] ⚠️ Access check failed, but allowing user (graceful degradation)')
+          accessCheckFailed = true // Mark that the check failed (not that user was denied)
           return null
         })
 
@@ -119,21 +121,29 @@ export async function verifyWhopUser(companyId: string, requireAccess = false): 
           companyId: effectiveCompanyId,
           hasAccess: access?.has_access,
           accessLevel: (access as any)?.access_level,
-          fullAccessObject: access
+          fullAccessObject: access,
+          accessCheckFailed
         })
 
-        if (!access || !access.has_access) {
+        // Only deny access if the check succeeded but returned has_access: false
+        // If the check failed (accessCheckFailed=true), allow through for graceful degradation
+        if (!accessCheckFailed && access && !access.has_access) {
           console.error('[Whop Auth] ❌ ACCESS DENIED:', {
             userId,
             companyId: effectiveCompanyId,
-            hasAccess: access?.has_access,
+            hasAccess: access.has_access,
             accessObject: access,
-            reason: !access ? 'Access object is null/undefined' : 'has_access is false'
+            reason: 'has_access is false'
           })
           return {
             success: false,
             error: `User ${userId} does not have access to company ${effectiveCompanyId}`
           }
+        }
+
+        // If access check failed entirely (API error), allow through with warning
+        if (accessCheckFailed) {
+          console.warn('[Whop Auth] ⚠️ Allowing user through despite access check failure (graceful degradation)')
         }
       }
     }
