@@ -79,6 +79,11 @@ export default function ViewSlotsDrawer({
       const generatedSlots: Slot[] = []
       const weeklySchedule = pattern.weekly_schedule as Record<string, Array<{ start: string; end: string }>>
 
+      console.log('🗓️ Pattern weekly schedule:', weeklySchedule)
+      console.log('📅 Pattern date range:', { start: pattern.start_date, end: pattern.end_date })
+      console.log('📅 Current week start:', currentWeekStart.toISOString())
+      console.log('📅 Week end:', addDays(currentWeekStart, 7).toISOString())
+
       // Map day names to date-fns day indices (Mon=1, Tue=2, etc.)
       const dayMap: Record<string, number> = {
         'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6, 'Sun': 0
@@ -89,9 +94,15 @@ export default function ViewSlotsDrawer({
         const currentDay = addDays(currentWeekStart, dayOffset)
         const dayName = format(currentDay, 'EEE') // Mon, Tue, etc.
 
+        console.log(`📆 Day ${dayOffset}: ${currentDay.toISOString()} -> ${dayName}`)
+
         // Check if this day has availability in the pattern
         const daySchedule = weeklySchedule[dayName]
-        if (!daySchedule || !Array.isArray(daySchedule)) continue
+        if (!daySchedule || !Array.isArray(daySchedule)) {
+          console.log(`  ❌ No schedule for ${dayName}`)
+          continue
+        }
+        console.log(`  ✅ Found schedule for ${dayName}:`, daySchedule)
 
         // Generate slots for each time range
         for (const timeRange of daySchedule) {

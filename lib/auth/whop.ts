@@ -28,6 +28,15 @@ export async function verifyWhopUser(companyId: string, requireAccess = false): 
   try {
     console.log('[Whop Auth] Starting verification for companyId:', companyId, 'requireAccess:', requireAccess)
 
+    // Verify WHOP_API_KEY is set for authenticated API calls
+    if (!process.env.WHOP_API_KEY) {
+      console.error('[Whop Auth] ❌ WHOP_API_KEY not set - cannot verify user access')
+      return {
+        success: false,
+        error: 'Server configuration error: WHOP_API_KEY not set'
+      }
+    }
+
     // Get and verify user token from headers
     const headersList = await headers()
     let userId: string | undefined
@@ -37,12 +46,10 @@ export async function verifyWhopUser(companyId: string, requireAccess = false): 
       userId = result.userId
       console.log('[Whop Auth] User token verified, userId:', userId)
     } catch (error) {
-      console.warn('[Whop Auth] Token verification failed:', error instanceof Error ? error.message : error)
-
-      // In dev mode, allow fallback to environment variable for easier testing
-      if (process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_WHOP_AGENT_USER_ID) {
-        console.warn('[Whop Auth] Using dev mode fallback user ID from environment variable')
-        userId = process.env.NEXT_PUBLIC_WHOP_AGENT_USER_ID
+      console.error('[Whop Auth] Token verification failed:', error instanceof Error ? error.message : error)
+      return {
+        success: false,
+        error: 'Whop user token not found. Please ensure you are accessing this app through the Whop platform.'
       }
     }
 
@@ -50,21 +57,19 @@ export async function verifyWhopUser(companyId: string, requireAccess = false): 
       console.error('[Whop Auth] No user ID found after token verification')
       return {
         success: false,
-        error: 'Whop user token not found. If you are the app developer, ensure you are developing in the whop.com iframe and have the dev proxy enabled.'
+        error: 'Authentication required'
       }
     }
 
-    // Use dev company ID if in dev mode and not provided
-    const effectiveCompanyId = companyId ||
-      (process.env.NODE_ENV === 'development' ? process.env.NEXT_PUBLIC_WHOP_COMPANY_ID : null)
-
-    if (!effectiveCompanyId) {
-      console.error('[Whop Auth] No effective company ID available')
+    if (!companyId) {
+      console.error('[Whop Auth] No company ID provided')
       return {
         success: false,
         error: 'Company ID is required'
       }
     }
+
+    const effectiveCompanyId = companyId
 
     console.log('[Whop Auth] Using effective company ID:', effectiveCompanyId)
 
@@ -98,53 +103,35 @@ export async function verifyWhopUser(companyId: string, requireAccess = false): 
     }
 
     // Optionally check access if required (for sensitive operations)
-    // Note: This requires a valid WHOP_API_KEY to be set
     let access = null
     let accessCheckFailed = false
+
     if (requireAccess) {
       console.log('[Whop Auth] Checking company access...')
 
-      // Skip access check if API key is not properly configured
-      if (!process.env.WHOP_API_KEY) {
-        console.warn('[Whop Auth] ⚠️ WHOP_API_KEY not set, skipping access check')
-        console.warn('[Whop Auth] Any authenticated Whop user will be allowed')
-      } else {
-        access = await whopsdk.users.checkAccess(effectiveCompanyId, { id: userId }).catch((err) => {
-          console.error('[Whop Auth] Failed to check access:', err)
-          console.warn('[Whop Auth] ⚠️ Access check failed, but allowing user (graceful degradation)')
-          accessCheckFailed = true // Mark that the check failed (not that user was denied)
-          return null
-        })
+      try {
+        access = await whopsdk.users.checkAccess(effectiveCompanyId, { id: userId })
 
         console.log('[Whop Auth] Access check result:', {
           userId,
           companyId: effectiveCompanyId,
           hasAccess: access?.has_access,
-          accessLevel: (access as any)?.access_level,
-          fullAccessObject: access,
-          accessCheckFailed
+          accessLevel: (access as any)?.access_level
         })
 
-        // Only deny access if the check succeeded but returned has_access: false
-        // If the check failed (accessCheckFailed=true), allow through for graceful degradation
-        if (!accessCheckFailed && access && !access.has_access) {
-          console.error('[Whop Auth] ❌ ACCESS DENIED:', {
-            userId,
-            companyId: effectiveCompanyId,
-            hasAccess: access.has_access,
-            accessObject: access,
-            reason: 'has_access is false'
-          })
+        // Deny access if check succeeded but returned has_access: false
+        if (access && !access.has_access) {
+          console.error('[Whop Auth] ❌ ACCESS DENIED: User does not have access to company')
           return {
             success: false,
-            error: `User ${userId} does not have access to company ${effectiveCompanyId}`
+            error: `You do not have access to this company`
           }
         }
-
-        // If access check failed entirely (API error), allow through with warning
-        if (accessCheckFailed) {
-          console.warn('[Whop Auth] ⚠️ Allowing user through despite access check failure (graceful degradation)')
-        }
+      } catch (error) {
+        console.error('[Whop Auth] Failed to check access:', error)
+        console.warn('[Whop Auth] ⚠️ Access check failed - this may indicate an invalid WHOP_API_KEY')
+        console.warn('[Whop Auth] Allowing user through with graceful degradation')
+        accessCheckFailed = true
       }
     }
 
@@ -158,7 +145,7 @@ export async function verifyWhopUser(companyId: string, requireAccess = false): 
     try {
       role = await determineUserRole(userId, effectiveCompanyId, access, requireAccess)
     } catch (error) {
-      console.warn('[Whop Auth] Role determination failed, defaulting to admin:', error)
+      console.warn('[Whop Auth] Role determination failed, defaulting to member:', error)
     }
 
     console.log('[Whop Auth] User role determined:', role)
@@ -204,13 +191,6 @@ async function determineUserRole(
 ): Promise<UserRole> {
   try {
     console.log('[Whop Auth] Determining role for user:', userId, 'in company:', companyId)
-
-    // Check if user is in the admin override list (temporary solution)
-    const adminOverride = process.env.WHOP_ADMIN_USERS?.split(',').map(id => id.trim()).includes(userId)
-    if (adminOverride) {
-      console.log('[Whop Auth] ✅ User in WHOP_ADMIN_USERS override list → admin role')
-      return 'admin'
-    }
 
     // Check if user is company owner
     const company = await whopsdk.companies.retrieve(companyId).catch(err => {
