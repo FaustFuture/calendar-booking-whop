@@ -139,8 +139,9 @@ export async function verifyWhopUser(companyId: string, requireAccess = false): 
     }
 
     // Determine role based on access level or company ownership
+    // Pass requireAccess flag so we know if access check was attempted
     console.log('[Whop Auth] Determining user role...')
-    const role = await determineUserRole(userId, effectiveCompanyId, access)
+    const role = await determineUserRole(userId, effectiveCompanyId, access, requireAccess)
     console.log('[Whop Auth] User role determined:', role)
 
     console.log('[Whop Auth] ✅ Authentication successful:', {
@@ -179,30 +180,63 @@ export async function verifyWhopUser(companyId: string, requireAccess = false): 
 async function determineUserRole(
   userId: string,
   companyId: string,
-  access: any
+  access: any,
+  accessWasChecked: boolean = false
 ): Promise<UserRole> {
   try {
+    console.log('[Whop Auth] Determining role for user:', userId, 'in company:', companyId)
+
     // Check if user is company owner
     const company = await whopsdk.companies.retrieve(companyId)
+    console.log('[Whop Auth] Company owner_id:', (company as any).owner_id, 'vs userId:', userId)
 
     // If user owns the company, they're an admin
     if ((company as any).owner_id === userId) {
+      console.log('[Whop Auth] ✅ User is company owner → admin role')
       return 'admin'
     }
 
-    // Check for admin-level permissions in access object (only if access was checked)
-    // This depends on your Whop app configuration
-    // You may need to adjust this based on your specific access structure
+    // If access object wasn't provided and we haven't already tried, fetch it for role determination
+    // Only attempt this if we have an API key and access wasn't already checked
+    if (!access && !accessWasChecked && process.env.WHOP_API_KEY) {
+      console.log('[Whop Auth] No access object provided, attempting to fetch for role determination...')
+      try {
+        access = await whopsdk.users.checkAccess(companyId, { id: userId })
+        console.log('[Whop Auth] Access fetched for role check:', {
+          hasAccess: access?.has_access,
+          access_level: (access as any)?.access_level,
+          fullAccess: access
+        })
+      } catch (err) {
+        console.warn('[Whop Auth] Could not fetch access for role determination (this is OK):', err instanceof Error ? err.message : err)
+        // Continue without access object - we'll fall back to member role
+      }
+    } else if (accessWasChecked && !access) {
+      console.log('[Whop Auth] Access was already checked but failed, skipping retry')
+    }
+
+    // Check for admin-level permissions in access object
+    // According to Whop docs, access_level can be: "customer", "admin", or "no_access"
+    // Admin access_level means the user is a team member of the company
     if (access) {
-      if ((access as any).role === 'admin' || (access as any).isOwner || (access as any).permissions?.includes('admin')) {
+      console.log('[Whop Auth] Checking access object for admin permissions:', {
+        access_level: (access as any).access_level,
+        has_access: access.has_access,
+        fullAccess: access
+      })
+
+      // Check if user has admin access_level (team member)
+      if ((access as any).access_level === 'admin') {
+        console.log('[Whop Auth] ✅ User has admin access_level → admin role')
         return 'admin'
       }
     }
 
     // Default to member role
+    console.log('[Whop Auth] ℹ️ User defaulting to member role')
     return 'member'
   } catch (error) {
-    console.error('Error determining user role:', error)
+    console.error('[Whop Auth] Error determining user role:', error)
     return 'member' // Default to more restrictive role on error
   }
 }
