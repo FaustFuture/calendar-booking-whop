@@ -1,7 +1,30 @@
-import { Calendar, AlertCircle } from "lucide-react";
-import Link from "next/link";
+import { headers } from 'next/headers'
+import { redirect } from 'next/navigation'
+import { Calendar, AlertCircle } from "lucide-react"
+import Link from "next/link"
 
-export default function DashboardPage() {
+export default async function DashboardLanding() {
+  // Get headers to check for Whop company ID
+  const headersList = await headers()
+
+  // Try to get company ID from Whop iframe header (production)
+  const whopCompanyId = headersList.get('x-whop-company-id')
+
+  if (whopCompanyId) {
+    console.log('[Dashboard Landing] Redirecting to company from Whop header:', whopCompanyId)
+    redirect(`/dashboard/${whopCompanyId}`)
+  }
+
+  // Fallback for development mode
+  const devCompanyId = process.env.NEXT_PUBLIC_WHOP_COMPANY_ID
+  if (process.env.NODE_ENV === 'development' && devCompanyId) {
+    console.log('[Dashboard Landing] Redirecting to dev company from env:', devCompanyId)
+    redirect(`/dashboard/${devCompanyId}`)
+  }
+
+  // If we reach here, no company context is available
+  console.warn('[Dashboard Landing] No company context found in headers or environment')
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 flex items-center justify-center p-4">
       <div className="max-w-2xl w-full">
@@ -37,9 +60,12 @@ export default function DashboardPage() {
             </div>
 
             <div className="bg-zinc-900/50 border border-zinc-700/30 rounded-lg p-4">
-              <h3 className="text-white font-semibold mb-2 text-sm">App URL Format:</h3>
-              <code className="text-emerald-400 text-xs bg-zinc-950/50 px-2 py-1 rounded">
-                /dashboard/[companyId]
+              <h3 className="text-white font-semibold mb-2 text-sm">For Developers:</h3>
+              <p className="text-zinc-400 text-xs mb-2">
+                Set these environment variables for local development:
+              </p>
+              <code className="text-emerald-400 text-xs bg-zinc-950/50 px-2 py-1 rounded block">
+                NEXT_PUBLIC_WHOP_COMPANY_ID=your-company-id
               </code>
             </div>
           </div>
@@ -64,5 +90,5 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
-  );
+  )
 }

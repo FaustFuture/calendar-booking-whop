@@ -25,6 +25,8 @@ export interface WhopAuthResult {
  */
 export async function verifyWhopUser(companyId: string): Promise<WhopAuthResult> {
   try {
+    console.log('[Whop Auth] Starting verification for companyId:', companyId)
+
     // Get and verify user token from headers
     const headersList = await headers()
     let userId: string | undefined
@@ -32,15 +34,19 @@ export async function verifyWhopUser(companyId: string): Promise<WhopAuthResult>
     try {
       const result = await whopsdk.verifyUserToken(headersList)
       userId = result.userId
+      console.log('[Whop Auth] User token verified, userId:', userId)
     } catch (error) {
+      console.warn('[Whop Auth] Token verification failed:', error instanceof Error ? error.message : error)
+
       // In dev mode, allow fallback to environment variable for easier testing
       if (process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_WHOP_AGENT_USER_ID) {
-        console.warn('⚠️ Using dev mode fallback user ID from environment variable')
+        console.warn('[Whop Auth] Using dev mode fallback user ID from environment variable')
         userId = process.env.NEXT_PUBLIC_WHOP_AGENT_USER_ID
       }
     }
 
     if (!userId) {
+      console.error('[Whop Auth] No user ID found after token verification')
       return {
         success: false,
         error: 'Whop user token not found. If you are the app developer, ensure you are developing in the whop.com iframe and have the dev proxy enabled.'
@@ -52,42 +58,82 @@ export async function verifyWhopUser(companyId: string): Promise<WhopAuthResult>
       (process.env.NODE_ENV === 'development' ? process.env.NEXT_PUBLIC_WHOP_COMPANY_ID : null)
 
     if (!effectiveCompanyId) {
+      console.error('[Whop Auth] No effective company ID available')
       return {
         success: false,
         error: 'Company ID is required'
       }
     }
 
+    console.log('[Whop Auth] Using effective company ID:', effectiveCompanyId)
+
     // Fetch user data and check access in parallel
+    console.log('[Whop Auth] Fetching company, user, and access data...')
     const [company, user, access] = await Promise.all([
-      whopsdk.companies.retrieve(effectiveCompanyId).catch(() => null),
-      whopsdk.users.retrieve(userId).catch(() => null),
-      whopsdk.users.checkAccess(effectiveCompanyId, { id: userId }).catch(() => null)
+      whopsdk.companies.retrieve(effectiveCompanyId).catch((err) => {
+        console.error('[Whop Auth] Failed to retrieve company:', err)
+        return null
+      }),
+      whopsdk.users.retrieve(userId).catch((err) => {
+        console.error('[Whop Auth] Failed to retrieve user:', err)
+        return null
+      }),
+      whopsdk.users.checkAccess(effectiveCompanyId, { id: userId }).catch((err) => {
+        console.error('[Whop Auth] Failed to check access:', err)
+        return null
+      })
     ])
 
     if (!company) {
+      console.error('[Whop Auth] Company not found:', effectiveCompanyId)
       return {
         success: false,
-        error: 'Company not found'
+        error: `Company not found: ${effectiveCompanyId}`
       }
     }
 
     if (!user) {
+      console.error('[Whop Auth] User not found:', userId)
       return {
         success: false,
-        error: 'User not found'
+        error: `User not found: ${userId}`
       }
     }
 
+    console.log('[Whop Auth] Access check result:', {
+      userId,
+      companyId: effectiveCompanyId,
+      hasAccess: access?.has_access,
+      accessLevel: (access as any)?.access_level,
+      fullAccessObject: access
+    })
+
     if (!access || !access.has_access) {
+      console.error('[Whop Auth] ❌ ACCESS DENIED:', {
+        userId,
+        companyId: effectiveCompanyId,
+        hasAccess: access?.has_access,
+        accessObject: access,
+        reason: !access ? 'Access object is null/undefined' : 'has_access is false'
+      })
       return {
         success: false,
-        error: 'User does not have access to this company'
+        error: `User ${userId} does not have access to company ${effectiveCompanyId}`
       }
     }
 
     // Determine role based on access level
+    console.log('[Whop Auth] Determining user role...')
     const role = await determineUserRole(userId, effectiveCompanyId, access)
+    console.log('[Whop Auth] User role determined:', role)
+
+    console.log('[Whop Auth] ✅ Authentication successful:', {
+      userId,
+      companyId: effectiveCompanyId,
+      role,
+      email: (user as any).email,
+      name: (user as any).username
+    })
 
     return {
       success: true,
@@ -101,7 +147,7 @@ export async function verifyWhopUser(companyId: string): Promise<WhopAuthResult>
       }
     }
   } catch (error) {
-    console.error('Error verifying Whop user:', error)
+    console.error('[Whop Auth] ❌ Unexpected error during verification:', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown authentication error'
