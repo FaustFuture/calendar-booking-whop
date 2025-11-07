@@ -186,14 +186,29 @@ async function determineUserRole(
   try {
     console.log('[Whop Auth] Determining role for user:', userId, 'in company:', companyId)
 
-    // Check if user is company owner
-    const company = await whopsdk.companies.retrieve(companyId)
-    console.log('[Whop Auth] Company owner_id:', (company as any).owner_id, 'vs userId:', userId)
-
-    // If user owns the company, they're an admin
-    if ((company as any).owner_id === userId) {
-      console.log('[Whop Auth] ✅ User is company owner → admin role')
+    // Check if user is in the admin override list (temporary solution)
+    const adminOverride = process.env.WHOP_ADMIN_USERS?.split(',').map(id => id.trim()).includes(userId)
+    if (adminOverride) {
+      console.log('[Whop Auth] ✅ User in WHOP_ADMIN_USERS override list → admin role')
       return 'admin'
+    }
+
+    // Check if user is company owner
+    const company = await whopsdk.companies.retrieve(companyId).catch(err => {
+      console.error('[Whop Auth] Failed to retrieve company for owner check:', err)
+      return null
+    })
+
+    if (company) {
+      console.log('[Whop Auth] Company owner_id:', (company as any).owner_id, 'vs userId:', userId)
+
+      // If user owns the company, they're an admin
+      if ((company as any).owner_id === userId) {
+        console.log('[Whop Auth] ✅ User is company owner → admin role')
+        return 'admin'
+      }
+    } else {
+      console.warn('[Whop Auth] Could not retrieve company for owner check')
     }
 
     // If access object wasn't provided and we haven't already tried, fetch it for role determination
