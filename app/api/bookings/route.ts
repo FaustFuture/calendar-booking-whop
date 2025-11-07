@@ -27,7 +27,7 @@ export async function GET(request: Request) {
     }
 
     // Verify Whop authentication and company access
-    const whopUser = await requireWhopAuth(companyId)
+    const whopUser = await requireWhopAuth(companyId, true)
 
     // Sync user to Supabase
     await syncWhopUserToSupabase(whopUser)
@@ -111,7 +111,7 @@ export async function POST(request: Request) {
     // Optional: Verify Whop user if authenticated (guests allowed for bookings)
     let whopUser = null
     try {
-      whopUser = await requireWhopAuth(companyId)
+      whopUser = await requireWhopAuth(companyId, true)
       // Sync authenticated user to Supabase
       await syncWhopUserToSupabase(whopUser)
     } catch (error) {

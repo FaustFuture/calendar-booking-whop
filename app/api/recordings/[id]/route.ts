@@ -21,7 +21,7 @@ export async function GET(
     }
 
     // Verify Whop authentication and company access
-    const whopUser = await requireWhopAuth(companyId)
+    const whopUser = await requireWhopAuth(companyId, true)
     await syncWhopUserToSupabase(whopUser)
 
     const supabase = await createClient()
@@ -78,7 +78,7 @@ export async function PATCH(
     }
 
     // Verify Whop authentication and company access
-    const whopUser = await requireWhopAuth(companyId)
+    const whopUser = await requireWhopAuth(companyId, true)
     await syncWhopUserToSupabase(whopUser)
 
     // Only admins can update recordings
@@ -131,7 +131,7 @@ export async function DELETE(
     }
 
     // Verify Whop authentication and company access
-    const whopUser = await requireWhopAuth(companyId)
+    const whopUser = await requireWhopAuth(companyId, true)
     await syncWhopUserToSupabase(whopUser)
 
     // Only admins can delete recordings

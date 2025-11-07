@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     }
 
     // Verify Whop authentication and company access
-    const whopUser = await requireWhopAuth(companyId)
+    const whopUser = await requireWhopAuth(companyId, true)
 
     // Sync user to Supabase
     await syncWhopUserToSupabase(whopUser)
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
     }
 
     // Verify Whop authentication and company access
-    const whopUser = await requireWhopAuth(companyId)
+    const whopUser = await requireWhopAuth(companyId, true)
 
     // Sync user to Supabase
     await syncWhopUserToSupabase(whopUser)

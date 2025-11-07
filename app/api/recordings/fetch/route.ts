@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify Whop authentication and company access
-    const whopUser = await requireWhopAuth(companyId)
+    const whopUser = await requireWhopAuth(companyId, true)
     await syncWhopUserToSupabase(whopUser)
 
     // Only admins can manually fetch recordings

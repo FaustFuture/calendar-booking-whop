@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     // Optional auth - guests can view availability
     let whopUser = null
     try {
-      whopUser = await requireWhopAuth(companyId)
+      whopUser = await requireWhopAuth(companyId, true)
       await syncWhopUserToSupabase(whopUser)
     } catch (error) {
       // Guest viewing allowed - authentication not required
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
     }
 
     // Verify Whop authentication and company access
-    const whopUser = await requireWhopAuth(companyId)
+    const whopUser = await requireWhopAuth(companyId, true)
 
     // Sync user to Supabase
     await syncWhopUserToSupabase(whopUser)
