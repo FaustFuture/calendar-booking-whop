@@ -7,8 +7,8 @@ import DashboardTabs from "@/app/dashboard/components/DashboardTabs";
 export default async function DashboardPage({ params }: { params: Promise<{ companyId: string }> }) {
   const { companyId } = await params;
 
-  // Verify Whop authentication
-  const authResult = await verifyWhopUser(companyId);
+  // Verify Whop authentication and check access to determine proper role
+  const authResult = await verifyWhopUser(companyId, true);
 
   if (!authResult.success || !authResult.user) {
     // Redirect to auth error page

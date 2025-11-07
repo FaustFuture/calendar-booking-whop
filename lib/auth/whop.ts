@@ -138,11 +138,11 @@ export async function verifyWhopUser(companyId: string, requireAccess = false): 
       }
     }
 
-    // Determine role - default to admin for now since role determination is having issues
+    // Determine role - default to member (more restrictive) for security
     // In Whop apps, if you can access the app, you're either an admin or customer
-    // For MVP, we'll treat all authenticated users as admins until we fix the API key issue
+    // We'll check access level to determine the actual role
     console.log('[Whop Auth] Determining user role...')
-    let role: UserRole = 'admin' // Default to admin for app creators/team members
+    let role: UserRole = 'member' // Default to member for security
 
     // Try to determine role more accurately if possible
     try {
@@ -220,13 +220,28 @@ async function determineUserRole(
       console.warn('[Whop Auth] Could not retrieve company for owner check')
     }
 
-    // Skip automatic access fetching since we're defaulting to admin role
-    // If access is needed for more granular permissions in the future,
-    // it should be explicitly passed when calling verifyWhopUser()
+    // If access wasn't checked yet, perform the check now to determine role accurately
     if (!access && !accessWasChecked) {
-      console.log('[Whop Auth] No access check needed - using default admin role for authenticated users')
-    } else if (accessWasChecked && !access) {
-      console.log('[Whop Auth] Access check was attempted but unavailable - using default admin role')
+      console.log('[Whop Auth] Access not checked yet - performing access check to determine role')
+
+      // Only perform check if API key is configured
+      if (process.env.WHOP_API_KEY) {
+        try {
+          access = await whopsdk.users.checkAccess(companyId, { id: userId })
+          console.log('[Whop Auth] Access check for role determination:', {
+            access_level: (access as any)?.access_level,
+            has_access: access?.has_access
+          })
+        } catch (error) {
+          console.warn('[Whop Auth] Failed to check access for role determination:', error)
+          console.warn('[Whop Auth] Defaulting to member role for security')
+          return 'member'
+        }
+      } else {
+        console.warn('[Whop Auth] ⚠️ WHOP_API_KEY not set, cannot determine role accurately')
+        console.warn('[Whop Auth] Defaulting to member role for security')
+        return 'member'
+      }
     }
 
     // Check for admin-level permissions in access object if provided
@@ -251,10 +266,10 @@ async function determineUserRole(
       }
     }
 
-    // For Whop apps: if user can access the app through iframe, they're authorized
-    // Default to admin role since Whop controls access at the iframe level
-    console.log('[Whop Auth] ℹ️ Defaulting to admin role for authenticated Whop user')
-    return 'admin'
+    // For Whop apps: default to member role for security
+    // Only grant admin role if explicitly verified above
+    console.log('[Whop Auth] ℹ️ No explicit role determined - defaulting to member role for security')
+    return 'member'
   } catch (error) {
     console.error('[Whop Auth] Error determining user role:', error)
     return 'member' // Default to more restrictive role on error
