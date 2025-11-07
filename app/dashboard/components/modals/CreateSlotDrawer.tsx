@@ -488,6 +488,7 @@ export default function CreateSlotDrawer({
                     onChange={setMeetingType}
                     conditionalValue={meetingValue}
                     onConditionalChange={setMeetingValue}
+                    companyId={companyId}
                   />
                   {errors.meeting && (
                     <p className="text-sm text-red-400">{errors.meeting}</p>

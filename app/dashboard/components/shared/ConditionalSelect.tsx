@@ -11,6 +11,7 @@ interface ConditionalSelectProps {
   onChange: (value: MeetingType) => void
   conditionalValue: string
   onConditionalChange: (value: string) => void
+  companyId: string
 }
 
 interface ConnectionStatus {
@@ -31,6 +32,7 @@ export default function ConditionalSelect({
   onChange,
   conditionalValue,
   onConditionalChange,
+  companyId,
 }: ConditionalSelectProps) {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
     google: false,
@@ -46,7 +48,7 @@ export default function ConditionalSelect({
   // Check OAuth connection status
   useEffect(() => {
     checkConnectionStatus()
-  }, [])
+  }, [companyId])
 
   // Listen for OAuth popup messages
   useEffect(() => {
@@ -69,8 +71,8 @@ export default function ConditionalSelect({
       setConnectionStatus((prev) => ({ ...prev, loading: true }))
 
       const [googleRes, zoomRes] = await Promise.all([
-        fetch('/api/meetings/generate?provider=google'),
-        fetch('/api/meetings/generate?provider=zoom'),
+        fetch(`/api/meetings/generate?provider=google&companyId=${companyId}`),
+        fetch(`/api/meetings/generate?provider=zoom&companyId=${companyId}`),
       ])
 
       const googleData = await googleRes.json()
@@ -92,8 +94,12 @@ export default function ConditionalSelect({
       setConnecting(provider)
 
       // Get OAuth URL from API
-      const response = await fetch(`/api/meetings/oauth/${provider}`)
+      const response = await fetch(`/api/meetings/oauth/${provider}?companyId=${companyId}`)
       const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to get authorization URL')
+      }
 
       if (!data.authUrl) {
         throw new Error('Failed to get authorization URL')
