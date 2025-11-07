@@ -285,13 +285,16 @@ export async function requireWhopAuth(companyId: string, requireAccess = false):
 /**
  * Syncs a Whop user to the local Supabase database
  * Creates or updates the user record to maintain relationships with bookings, etc.
+ * @throws Error if sync fails (critical for operations that require user in DB like bookings)
  */
 export async function syncWhopUserToSupabase(whopUser: WhopAuthUser): Promise<void> {
   try {
     const supabase = await createClient()
 
+    console.log('[Sync] Syncing Whop user to Supabase:', whopUser.userId)
+
     // Check if user exists
-    const { data: existingUser } = await supabase
+    const { data: existingUser, error: selectError } = await supabase
       .from('users')
       .select('id, role')
       .eq('id', whopUser.userId)
@@ -307,22 +310,39 @@ export async function syncWhopUserToSupabase(whopUser: WhopAuthUser): Promise<vo
 
     if (existingUser) {
       // Update existing user
-      await supabase
+      console.log('[Sync] Updating existing user:', whopUser.userId)
+      const { error: updateError } = await supabase
         .from('users')
         .update(userData)
         .eq('id', whopUser.userId)
+
+      if (updateError) {
+        console.error('[Sync] ❌ Failed to update user:', updateError)
+        throw new Error(`Failed to update user in database: ${updateError.message}`)
+      }
+
+      console.log('[Sync] ✅ User updated successfully')
     } else {
       // Insert new user
-      await supabase
+      console.log('[Sync] Inserting new user:', whopUser.userId)
+      const { error: insertError } = await supabase
         .from('users')
         .insert({
           ...userData,
           created_at: new Date().toISOString()
         })
+
+      if (insertError) {
+        console.error('[Sync] ❌ Failed to insert user:', insertError)
+        throw new Error(`Failed to insert user into database: ${insertError.message}`)
+      }
+
+      console.log('[Sync] ✅ User inserted successfully')
     }
   } catch (error) {
-    console.error('Error syncing Whop user to Supabase:', error)
-    // Don't throw - syncing is not critical for auth
+    console.error('[Sync] ❌ Error syncing Whop user to Supabase:', error)
+    // THROW the error - syncing IS critical for operations like bookings
+    throw error
   }
 }
 

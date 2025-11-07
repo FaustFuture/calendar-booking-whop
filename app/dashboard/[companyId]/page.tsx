@@ -18,7 +18,12 @@ export default async function DashboardPage({ params }: { params: Promise<{ comp
   const whopUser = authResult.user;
 
   // Sync user to Supabase for relationships
-  await syncWhopUserToSupabase(whopUser);
+  try {
+    await syncWhopUserToSupabase(whopUser);
+  } catch (error) {
+    console.error('Failed to sync user to database:', error);
+    redirect('/auth/error?message=' + encodeURIComponent('Failed to sync user data. Please try refreshing the page.'));
+  }
 
   // Prepare user object for context
   const userContextData = {

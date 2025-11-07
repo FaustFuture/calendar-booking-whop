@@ -95,11 +95,6 @@ export default function ViewSlotsDrawer({
       const generatedSlots: Slot[] = []
       const weeklySchedule = pattern.weekly_schedule as Record<string, Array<{ start: string; end: string }>>
 
-      console.log('🗓️ Pattern weekly schedule:', weeklySchedule)
-      console.log('📅 Pattern date range:', { start: pattern.start_date, end: pattern.end_date })
-      console.log('📅 Current week start:', currentWeekStart.toISOString())
-      console.log('📅 Week end:', addDays(currentWeekStart, 7).toISOString())
-
       // Get pattern date range boundaries
       const patternStartDate = pattern.start_date ? new Date(pattern.start_date) : null
       const patternEndDate = pattern.end_date ? new Date(pattern.end_date) : null
@@ -114,15 +109,12 @@ export default function ViewSlotsDrawer({
         const currentDay = addDays(currentWeekStart, dayOffset)
         const dayName = format(currentDay, 'EEE') // Mon, Tue, etc.
 
-        console.log(`📆 Day ${dayOffset}: ${currentDay.toISOString()} -> ${dayName}`)
-
         // Check if this day is within the pattern's date range
         const currentDayDate = new Date(currentDay.getFullYear(), currentDay.getMonth(), currentDay.getDate())
 
         if (patternStartDate) {
           const startDateOnly = new Date(patternStartDate.getFullYear(), patternStartDate.getMonth(), patternStartDate.getDate())
           if (currentDayDate < startDateOnly) {
-            console.log(`  ⏭️ Skipping ${dayName} - before pattern start date`)
             continue
           }
         }
@@ -130,7 +122,6 @@ export default function ViewSlotsDrawer({
         if (patternEndDate) {
           const endDateOnly = new Date(patternEndDate.getFullYear(), patternEndDate.getMonth(), patternEndDate.getDate())
           if (currentDayDate > endDateOnly) {
-            console.log(`  ⏭️ Skipping ${dayName} - after pattern end date`)
             continue
           }
         }
@@ -138,10 +129,8 @@ export default function ViewSlotsDrawer({
         // Check if this day has availability in the pattern
         const daySchedule = weeklySchedule[dayName]
         if (!daySchedule || !Array.isArray(daySchedule)) {
-          console.log(`  ❌ No schedule for ${dayName}`)
           continue
         }
-        console.log(`  ✅ Found schedule for ${dayName}:`, daySchedule)
 
         // Generate slots for each time range
         for (const timeRange of daySchedule) {

@@ -110,13 +110,28 @@ export async function POST(request: Request) {
 
     // Optional: Verify Whop user if authenticated (guests allowed for bookings)
     let whopUser = null
-    try {
-      whopUser = await requireWhopAuth(companyId, true)
-      // Sync authenticated user to Supabase
-      await syncWhopUserToSupabase(whopUser)
-    } catch (error) {
-      // Guest booking allowed - authentication not required for creating bookings
-      console.log('Guest booking (no authentication)')
+    let isAuthenticatedBooking = false
+
+    // If member_id is provided in the request, this is an authenticated booking
+    if (body.member_id) {
+      isAuthenticatedBooking = true
+      try {
+        whopUser = await requireWhopAuth(companyId, true)
+        console.log('✅ Authenticated user detected:', whopUser.userId)
+
+        // CRITICAL: Sync authenticated user to Supabase BEFORE creating booking
+        await syncWhopUserToSupabase(whopUser)
+        console.log('✅ User synced to Supabase:', whopUser.userId)
+      } catch (error) {
+        console.error('❌ Failed to authenticate or sync user for booking:', error)
+        return NextResponse.json(
+          { error: 'Failed to authenticate user. Please try refreshing the page and booking again.' },
+          { status: 401 }
+        )
+      }
+    } else {
+      // Guest booking
+      console.log('👤 Guest booking (no authentication required)')
     }
 
     // Get slot or pattern details to check if meeting generation is needed
@@ -124,6 +139,26 @@ export async function POST(request: Request) {
     let meetingData = null
     let startTime = null
     let endTime = null
+
+    // Ensure admin user is also synced to Supabase (for foreign key constraint)
+    if (body.admin_id) {
+      try {
+        // We need to verify the admin exists in Supabase users table
+        const { data: adminExists } = await supabase
+          .from('users')
+          .select('id')
+          .eq('id', body.admin_id)
+          .single()
+
+        if (!adminExists) {
+          console.log('⚠️ Admin user not found in Supabase, attempting to sync...')
+          // Note: In a real scenario, we'd need the admin's Whop data to sync them
+          // For now, we'll let the foreign key constraint error surface
+        }
+      } catch (error) {
+        console.log('⚠️ Could not verify admin user existence:', error)
+      }
+    }
 
     console.log('📋 Booking request body:', {
       slot_id: body.slot_id,
