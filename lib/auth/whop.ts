@@ -302,8 +302,8 @@ export async function syncWhopUserToSupabase(whopUser: WhopAuthUser): Promise<vo
 
     const userData = {
       id: whopUser.userId,
-      email: whopUser.email || '',
-      name: whopUser.name || '',
+      email: whopUser.email || null, // Email may be null/undefined from Whop
+      name: whopUser.name || 'Whop User',
       role: whopUser.role,
       updated_at: new Date().toISOString()
     }
