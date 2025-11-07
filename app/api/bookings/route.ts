@@ -40,7 +40,8 @@ export async function GET(request: Request) {
         *,
         member:member_id(id, name, email),
         admin:admin_id(id, name, email),
-        slot:slot_id(start_time, end_time)
+        slot:slot_id(start_time, end_time, title, description, meeting_type),
+        pattern:pattern_id(id, title, description, meeting_type, duration_minutes, price)
       `)
       .order('created_at', { ascending: false })
 
@@ -54,16 +55,39 @@ export async function GET(request: Request) {
       query = query.eq('member_id', whopUser.userId)
     }
 
+    console.log('🔍 Fetching bookings with query:', {
+      role: whopUser.role,
+      userId: whopUser.userId,
+      filterByMemberId: whopUser.role === 'member',
+      status
+    })
+
     const { data, error } = await query
 
     if (error) {
+      console.error('❌ Supabase query error:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ data })
+    console.log('✅ Bookings fetched successfully:', {
+      count: data?.length || 0,
+      bookings: data?.map(b => ({
+        id: b.id,
+        member_id: b.member_id,
+        admin_id: b.admin_id,
+        title: b.title,
+        booking_start_time: b.booking_start_time,
+        booking_end_time: b.booking_end_time,
+        pattern_title: b.pattern?.title,
+        meeting_url: b.meeting_url ? '✅' : '❌'
+      }))
+    })
+
+    return NextResponse.json({ bookings: data })
   } catch (error) {
+    console.error('❌ Unexpected error in GET /api/bookings:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
     )
   }
@@ -105,8 +129,11 @@ export async function POST(request: Request) {
       slot_id: body.slot_id,
       pattern_id: body.pattern_id,
       admin_id: body.admin_id,
+      member_id: body.member_id,
+      guest_email: body.guest_email,
       booking_start_time: body.booking_start_time,
       booking_end_time: body.booking_end_time,
+      authenticatedUser: whopUser?.userId || 'guest'
     })
 
     // Check if this is a slot-based or pattern-based booking
@@ -213,19 +240,54 @@ export async function POST(request: Request) {
     // Extract companyId from body (used for auth only, not a DB column)
     const { companyId: _, ...bookingData } = body
 
+    const insertData = {
+      ...bookingData,
+      status: bookingData.status || 'upcoming',
+      meeting_url: meetingUrl,
+      // Set title and description from pattern/slot if not provided
+      title: bookingData.title || meetingData?.title || 'Booking',
+      description: bookingData.description || meetingData?.description,
+    }
+
+    console.log('📝 Actual data being inserted into database:', {
+      member_id: insertData.member_id,
+      admin_id: insertData.admin_id,
+      pattern_id: insertData.pattern_id,
+      slot_id: insertData.slot_id,
+      guest_name: insertData.guest_name,
+      guest_email: insertData.guest_email,
+      status: insertData.status,
+      title: insertData.title,
+      description: insertData.description,
+      booking_start_time: insertData.booking_start_time,
+      booking_end_time: insertData.booking_end_time,
+      hasMeetingUrl: !!insertData.meeting_url
+    })
+
     const { data, error } = await supabase
       .from('bookings')
-      .insert({
-        ...bookingData,
-        status: bookingData.status || 'upcoming',
-        meeting_url: meetingUrl,
-      })
+      .insert(insertData)
       .select()
       .single()
 
     if (error) {
+      console.error('❌ Database insert error:', error)
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
+
+    console.log('✅ Booking created in database:', {
+      id: data.id,
+      member_id: data.member_id,
+      admin_id: data.admin_id,
+      status: data.status,
+      title: data.title,
+      description: data.description,
+      booking_start_time: data.booking_start_time,
+      booking_end_time: data.booking_end_time,
+      meeting_url: data.meeting_url ? '✅ Present' : '❌ Missing',
+      guest_name: data.guest_name,
+      guest_email: data.guest_email
+    })
 
     return NextResponse.json({ data }, { status: 201 })
   } catch (error) {

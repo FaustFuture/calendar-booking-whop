@@ -48,12 +48,22 @@ export default function ViewSlotsModal({
     isGuest
   })
 
-  // Load slots when modal opens
+  // Reset to current week and load slots when modal opens
+  useEffect(() => {
+    if (isOpen && pattern) {
+      // Reset to current week when modal opens
+      const today = startOfWeek(new Date(), { weekStartsOn: 1 })
+      setCurrentWeekStart(today)
+      loadSlots()
+    }
+  }, [isOpen, pattern])
+
+  // Reload slots when week changes
   useEffect(() => {
     if (isOpen && pattern) {
       loadSlots()
     }
-  }, [isOpen, pattern, currentWeekStart])
+  }, [currentWeekStart])
 
   async function loadSlots() {
     if (!pattern) return
@@ -128,11 +138,26 @@ export default function ViewSlotsModal({
           .map(booking => new Date(booking.booking_start_time).toISOString())
       )
 
-      // Mark slots as booked if they match an existing booking
-      const slotsWithBookingStatus = generatedSlots.map(slot => ({
-        ...slot,
-        is_booked: bookedTimeSlots.has(new Date(slot.start_time).toISOString())
-      }))
+      // Get current time for filtering past slots
+      const now = new Date()
+
+      console.log('🕐 Current time:', now.toISOString())
+      console.log('📊 Generated slots before filtering:', generatedSlots.length)
+
+      // Mark slots as booked if they match an existing booking, and filter out past slots
+      const slotsWithBookingStatus = generatedSlots
+        .filter(slot => {
+          // Only show slots that haven't started yet
+          const slotStartTime = new Date(slot.start_time)
+          return slotStartTime > now
+        })
+        .map(slot => ({
+          ...slot,
+          is_booked: bookedTimeSlots.has(new Date(slot.start_time).toISOString())
+        }))
+
+      console.log('✅ Available future slots:', slotsWithBookingStatus.length)
+      console.log('📅 First available slot:', slotsWithBookingStatus[0]?.start_time)
 
       setSlots(slotsWithBookingStatus)
     } catch (error) {
@@ -240,7 +265,19 @@ export default function ViewSlotsModal({
   }
 
   function previousWeek() {
-    setCurrentWeekStart(addDays(currentWeekStart, -7))
+    const newWeekStart = addDays(currentWeekStart, -7)
+    // Don't allow navigating to weeks in the past
+    const today = startOfWeek(new Date(), { weekStartsOn: 1 })
+    if (newWeekStart >= today) {
+      setCurrentWeekStart(newWeekStart)
+    }
+  }
+
+  // Check if previous week button should be disabled
+  const isPreviousWeekDisabled = () => {
+    const today = startOfWeek(new Date(), { weekStartsOn: 1 })
+    const previousWeekStart = addDays(currentWeekStart, -7)
+    return previousWeekStart < today
   }
 
   function getMeetingTypeDisplay(meetingType?: string) {
@@ -312,7 +349,8 @@ export default function ViewSlotsModal({
         <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
           <button
             onClick={previousWeek}
-            className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors"
+            disabled={isPreviousWeekDisabled()}
+            className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-zinc-800"
           >
             Previous Week
           </button>

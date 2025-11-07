@@ -13,9 +13,10 @@ export function middleware(request: NextRequest) {
   // Create a new headers object to potentially modify
   const requestHeaders = new Headers(request.headers)
 
-  // Forward Whop iframe headers if present (critical for production)
+  // Forward Whop iframe headers if present (critical for production and dev proxy)
   const whopCompanyId = request.headers.get('x-whop-company-id')
   const whopUserId = request.headers.get('x-whop-user-id')
+  const whopUserToken = request.headers.get('x-whop-user-token') // Required for verifyUserToken()
 
   if (whopCompanyId) {
     requestHeaders.set('x-whop-company-id', whopCompanyId)
@@ -24,6 +25,12 @@ export function middleware(request: NextRequest) {
 
   if (whopUserId) {
     requestHeaders.set('x-whop-user-id', whopUserId)
+    console.log('[Middleware] Forwarding Whop user ID:', whopUserId)
+  }
+
+  if (whopUserToken) {
+    requestHeaders.set('x-whop-user-token', whopUserToken)
+    console.log('[Middleware] Forwarding Whop user token (length:', whopUserToken.length + ')')
   }
 
   // Extract companyId from URL for dashboard routes

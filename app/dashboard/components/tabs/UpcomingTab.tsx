@@ -34,12 +34,28 @@ export default function UpcomingTab({ roleOverride, companyId }: UpcomingTabProp
 
       const data = await response.json()
 
+      console.log('📊 [UpcomingTab] Received bookings data:', {
+        hasBookings: !!data.bookings,
+        count: data.bookings?.length || 0,
+        firstBooking: data.bookings?.[0] ? {
+          id: data.bookings[0].id,
+          title: data.bookings[0].title,
+          booking_start_time: data.bookings[0].booking_start_time,
+          pattern_title: data.bookings[0].pattern?.title,
+          hasPattern: !!data.bookings[0].pattern
+        } : null
+      })
+
       // Filter out bookings where end time has already passed (client-side safety check)
       const now = new Date()
       const upcomingBookings = (data.bookings || []).filter((booking: BookingWithRelations) => {
         const endTime = booking.slot?.end_time || booking.booking_end_time
         if (!endTime) return true // Keep bookings without end time
         return new Date(endTime) >= now
+      })
+
+      console.log('📊 [UpcomingTab] After filtering:', {
+        count: upcomingBookings.length
       })
 
       setBookings(upcomingBookings)
@@ -189,7 +205,7 @@ export default function UpcomingTab({ roleOverride, companyId }: UpcomingTabProp
                       <div className="flex-1 min-w-0">
                         {/* Title */}
                         <h3 className="text-lg font-semibold text-white mb-2">
-                          {booking.title}
+                          {booking.title || booking.pattern?.title || booking.slot?.title || 'Booking'}
                         </h3>
 
                         {/* Date, Time, Duration */}

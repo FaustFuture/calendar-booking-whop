@@ -66,6 +66,11 @@ export default function DashboardTabs({ companyId }: DashboardTabsProps) {
     setEditingPattern(null)
   }
 
+  function handleBookingSuccess() {
+    // Switch to upcoming tab after successful booking
+    setActiveTab('upcoming')
+  }
+
   // Early return if no user
   if (!user) {
     return (
@@ -146,6 +151,7 @@ export default function DashboardTabs({ companyId }: DashboardTabsProps) {
             companyId={companyId}
             hideHeader
             onEditPattern={handleEditPattern}
+            onBookingSuccess={handleBookingSuccess}
           />
         )}
         {activeTab === 'upcoming' && (

@@ -7,15 +7,18 @@ import { format } from 'date-fns'
 import CreateSlotDrawer from '../modals/CreateSlotDrawer'
 import ViewSlotsModal from '../modals/ViewSlotsModal'
 import { AvailabilityPatternSkeleton } from '../shared/ListItemSkeleton'
+import { useWhopUser } from '@/lib/context/WhopUserContext'
 
 interface AvailabilityTabProps {
   roleOverride?: 'admin' | 'member'
   companyId: string
   hideHeader?: boolean
   onEditPattern?: (pattern: AvailabilityPattern) => void
+  onBookingSuccess?: () => void
 }
 
-export default function AvailabilityTab({ roleOverride, companyId, hideHeader, onEditPattern }: AvailabilityTabProps) {
+export default function AvailabilityTab({ roleOverride, companyId, hideHeader, onEditPattern, onBookingSuccess }: AvailabilityTabProps) {
+  const { user } = useWhopUser() // Get current user from context
   const [patterns, setPatterns] = useState<AvailabilityPattern[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -36,7 +39,43 @@ export default function AvailabilityTab({ roleOverride, companyId, hideHeader, o
       }
 
       const data = await response.json()
-      setPatterns(data.patterns || [])
+      const allPatterns = data.patterns || []
+
+      // For members, filter out patterns that are no longer bookable
+      if (roleOverride === 'member') {
+        const now = new Date()
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+        const bookablePatterns = allPatterns.filter((pattern: AvailabilityPattern) => {
+          // Must be active
+          if (!pattern.is_active) return false
+
+          // Check if pattern has ended
+          if (pattern.end_date) {
+            const endDate = new Date(pattern.end_date)
+            // If end date has passed, don't show it
+            if (endDate < today) return false
+          }
+
+          // Check if pattern has started
+          const startDate = new Date(pattern.start_date)
+          // Only show patterns that have started or start today
+          if (startDate > today) return false
+
+          return true
+        })
+
+        console.log('📋 [AvailabilityTab] Filtered patterns for members:', {
+          total: allPatterns.length,
+          bookable: bookablePatterns.length,
+          filtered: allPatterns.length - bookablePatterns.length
+        })
+
+        setPatterns(bookablePatterns)
+      } else {
+        // Admins see all patterns for management purposes
+        setPatterns(allPatterns)
+      }
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
@@ -85,6 +124,29 @@ export default function AvailabilityTab({ roleOverride, companyId, hideHeader, o
       const timeRanges = ranges.map(r => `${r.start}-${r.end}`).join(', ')
       return `${day}: ${timeRanges}`
     }).join(' • ')
+  }
+
+  function getPatternStatus(pattern: AvailabilityPattern) {
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const startDate = new Date(pattern.start_date)
+
+    if (!pattern.is_active) {
+      return { label: 'Inactive', color: 'text-zinc-500', bgColor: 'bg-zinc-500/10' }
+    }
+
+    if (startDate > today) {
+      return { label: 'Not Started', color: 'text-yellow-500', bgColor: 'bg-yellow-500/10' }
+    }
+
+    if (pattern.end_date) {
+      const endDate = new Date(pattern.end_date)
+      if (endDate < today) {
+        return { label: 'Expired', color: 'text-red-500', bgColor: 'bg-red-500/10' }
+      }
+    }
+
+    return { label: 'Active', color: 'text-emerald-400', bgColor: 'bg-emerald-500/10' }
   }
 
   function getMeetingTypeDisplay(meetingType?: string) {
@@ -158,12 +220,12 @@ export default function AvailabilityTab({ roleOverride, companyId, hideHeader, o
               <Clock className="w-16 h-16 text-zinc-600" />
             </div>
             <h3 className="text-2xl font-semibold text-white mb-2">
-              {isAdmin ? 'No availability patterns yet' : 'No availability patterns'}
+              {isAdmin ? 'No availability patterns yet' : 'No available time slots'}
             </h3>
             <p className="text-zinc-400 text-lg max-w-md mx-auto">
               {isAdmin
                 ? 'Create your first availability pattern to start accepting bookings'
-                : 'Check back later for available booking slots'}
+                : 'There are currently no active booking slots available. Please check back later.'}
             </p>
             {isAdmin && (
               <button
@@ -178,11 +240,19 @@ export default function AvailabilityTab({ roleOverride, companyId, hideHeader, o
         </div>
       ) : (
         <div className="grid gap-3">
-          {patterns.map((pattern) => (
-            <div
-              key={pattern.id}
-              className="group relative overflow-hidden rounded-xl border border-zinc-700/50 bg-zinc-800/50 hover:bg-zinc-800 hover:border-emerald-500/50 transition-colors"
-            >
+          {patterns.map((pattern) => {
+            const status = getPatternStatus(pattern)
+            const isExpiredOrNotStarted = status.label === 'Expired' || status.label === 'Not Started' || status.label === 'Inactive'
+
+            return (
+              <div
+                key={pattern.id}
+                className={`group relative overflow-hidden rounded-xl border transition-colors ${
+                  isAdmin && isExpiredOrNotStarted
+                    ? 'border-zinc-700/30 bg-zinc-800/30 opacity-60'
+                    : 'border-zinc-700/50 bg-zinc-800/50 hover:bg-zinc-800 hover:border-emerald-500/50'
+                }`}
+              >
               <div className="relative p-4">
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -198,7 +268,17 @@ export default function AvailabilityTab({ roleOverride, companyId, hideHeader, o
                         <h3 className="text-base font-semibold text-white truncate">
                           {pattern.title}
                         </h3>
-                        <span className={`flex-shrink-0 w-2 h-2 rounded-full ${pattern.is_active ? 'bg-emerald-400' : 'bg-zinc-500'}`}></span>
+                        {isAdmin && (() => {
+                          const status = getPatternStatus(pattern)
+                          return (
+                            <span className={`flex-shrink-0 px-2 py-0.5 rounded text-xs font-medium ${status.color} ${status.bgColor}`}>
+                              {status.label}
+                            </span>
+                          )
+                        })()}
+                        {!isAdmin && (
+                          <span className={`flex-shrink-0 w-2 h-2 rounded-full ${pattern.is_active ? 'bg-emerald-400' : 'bg-zinc-500'}`}></span>
+                        )}
                       </div>
 
                       {/* Row 2: Quick Info */}
@@ -262,7 +342,8 @@ export default function AvailabilityTab({ roleOverride, companyId, hideHeader, o
                 </div>
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -282,9 +363,12 @@ export default function AvailabilityTab({ roleOverride, companyId, hideHeader, o
         onClose={handleCloseViewSlots}
         pattern={selectedPattern}
         companyId={companyId}
+        currentUserId={user?.userId || null}
+        currentUserEmail={user?.email || null}
         onBookingSuccess={() => {
           loadPatterns()
           handleCloseViewSlots()
+          onBookingSuccess?.()
         }}
       />
     </div>
