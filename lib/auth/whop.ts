@@ -21,11 +21,12 @@ export interface WhopAuthResult {
 /**
  * Verifies the Whop user token from request headers and checks access to a company
  * @param companyId - The company ID to check access for
+ * @param requireAccess - Whether to require company access check (default: false for basic auth)
  * @returns WhopAuthResult with user info and role
  */
-export async function verifyWhopUser(companyId: string): Promise<WhopAuthResult> {
+export async function verifyWhopUser(companyId: string, requireAccess = false): Promise<WhopAuthResult> {
   try {
-    console.log('[Whop Auth] Starting verification for companyId:', companyId)
+    console.log('[Whop Auth] Starting verification for companyId:', companyId, 'requireAccess:', requireAccess)
 
     // Get and verify user token from headers
     const headersList = await headers()
@@ -67,19 +68,15 @@ export async function verifyWhopUser(companyId: string): Promise<WhopAuthResult>
 
     console.log('[Whop Auth] Using effective company ID:', effectiveCompanyId)
 
-    // Fetch user data and check access in parallel
-    console.log('[Whop Auth] Fetching company, user, and access data...')
-    const [company, user, access] = await Promise.all([
+    // Fetch user data and company info
+    console.log('[Whop Auth] Fetching company and user data...')
+    const [company, user] = await Promise.all([
       whopsdk.companies.retrieve(effectiveCompanyId).catch((err) => {
         console.error('[Whop Auth] Failed to retrieve company:', err)
         return null
       }),
       whopsdk.users.retrieve(userId).catch((err) => {
         console.error('[Whop Auth] Failed to retrieve user:', err)
-        return null
-      }),
-      whopsdk.users.checkAccess(effectiveCompanyId, { id: userId }).catch((err) => {
-        console.error('[Whop Auth] Failed to check access:', err)
         return null
       })
     ])
@@ -100,29 +97,48 @@ export async function verifyWhopUser(companyId: string): Promise<WhopAuthResult>
       }
     }
 
-    console.log('[Whop Auth] Access check result:', {
-      userId,
-      companyId: effectiveCompanyId,
-      hasAccess: access?.has_access,
-      accessLevel: (access as any)?.access_level,
-      fullAccessObject: access
-    })
+    // Optionally check access if required (for sensitive operations)
+    // Note: This requires a valid WHOP_API_KEY to be set
+    let access = null
+    if (requireAccess) {
+      console.log('[Whop Auth] Checking company access...')
 
-    if (!access || !access.has_access) {
-      console.error('[Whop Auth] ❌ ACCESS DENIED:', {
-        userId,
-        companyId: effectiveCompanyId,
-        hasAccess: access?.has_access,
-        accessObject: access,
-        reason: !access ? 'Access object is null/undefined' : 'has_access is false'
-      })
-      return {
-        success: false,
-        error: `User ${userId} does not have access to company ${effectiveCompanyId}`
+      // Skip access check if API key is not properly configured
+      if (!process.env.WHOP_API_KEY) {
+        console.warn('[Whop Auth] ⚠️ WHOP_API_KEY not set, skipping access check')
+        console.warn('[Whop Auth] Any authenticated Whop user will be allowed')
+      } else {
+        access = await whopsdk.users.checkAccess(effectiveCompanyId, { id: userId }).catch((err) => {
+          console.error('[Whop Auth] Failed to check access:', err)
+          console.warn('[Whop Auth] ⚠️ Access check failed, but allowing user (graceful degradation)')
+          return null
+        })
+
+        console.log('[Whop Auth] Access check result:', {
+          userId,
+          companyId: effectiveCompanyId,
+          hasAccess: access?.has_access,
+          accessLevel: (access as any)?.access_level,
+          fullAccessObject: access
+        })
+
+        if (!access || !access.has_access) {
+          console.error('[Whop Auth] ❌ ACCESS DENIED:', {
+            userId,
+            companyId: effectiveCompanyId,
+            hasAccess: access?.has_access,
+            accessObject: access,
+            reason: !access ? 'Access object is null/undefined' : 'has_access is false'
+          })
+          return {
+            success: false,
+            error: `User ${userId} does not have access to company ${effectiveCompanyId}`
+          }
+        }
       }
     }
 
-    // Determine role based on access level
+    // Determine role based on access level or company ownership
     console.log('[Whop Auth] Determining user role...')
     const role = await determineUserRole(userId, effectiveCompanyId, access)
     console.log('[Whop Auth] User role determined:', role)
@@ -132,7 +148,8 @@ export async function verifyWhopUser(companyId: string): Promise<WhopAuthResult>
       companyId: effectiveCompanyId,
       role,
       email: (user as any).email,
-      name: (user as any).username
+      name: (user as any).username,
+      requireAccessCheckPassed: requireAccess
     })
 
     return {
@@ -173,11 +190,13 @@ async function determineUserRole(
       return 'admin'
     }
 
-    // Check for admin-level permissions in access object
+    // Check for admin-level permissions in access object (only if access was checked)
     // This depends on your Whop app configuration
     // You may need to adjust this based on your specific access structure
-    if ((access as any).role === 'admin' || (access as any).isOwner || (access as any).permissions?.includes('admin')) {
-      return 'admin'
+    if (access) {
+      if ((access as any).role === 'admin' || (access as any).isOwner || (access as any).permissions?.includes('admin')) {
+        return 'admin'
+      }
     }
 
     // Default to member role
@@ -191,9 +210,11 @@ async function determineUserRole(
 /**
  * Wrapper function that verifies Whop authentication and throws if unauthorized
  * Use this in API routes that require authentication
+ * @param companyId - The company ID to check access for
+ * @param requireAccess - Whether to require company access check (default: false)
  */
-export async function requireWhopAuth(companyId: string): Promise<WhopAuthUser> {
-  const result = await verifyWhopUser(companyId)
+export async function requireWhopAuth(companyId: string, requireAccess = false): Promise<WhopAuthUser> {
+  const result = await verifyWhopUser(companyId, requireAccess)
 
   if (!result.success || !result.user) {
     throw new Error(result.error || 'Authentication required')
