@@ -220,33 +220,22 @@ async function determineUserRole(
       console.warn('[Whop Auth] Could not retrieve company for owner check')
     }
 
-    // If access object wasn't provided and we haven't already tried, fetch it for role determination
-    // Only attempt this if we have an API key and access wasn't already checked
-    if (!access && !accessWasChecked && process.env.WHOP_API_KEY) {
-      console.log('[Whop Auth] No access object provided, attempting to fetch for role determination...')
-      try {
-        access = await whopsdk.users.checkAccess(companyId, { id: userId })
-        console.log('[Whop Auth] Access fetched for role check:', {
-          hasAccess: access?.has_access,
-          access_level: (access as any)?.access_level,
-          fullAccess: access
-        })
-      } catch (err) {
-        console.warn('[Whop Auth] Could not fetch access for role determination (this is OK):', err instanceof Error ? err.message : err)
-        // Continue without access object - we'll fall back to member role
-      }
+    // Skip automatic access fetching since we're defaulting to admin role
+    // If access is needed for more granular permissions in the future,
+    // it should be explicitly passed when calling verifyWhopUser()
+    if (!access && !accessWasChecked) {
+      console.log('[Whop Auth] No access check needed - using default admin role for authenticated users')
     } else if (accessWasChecked && !access) {
-      console.log('[Whop Auth] Access was already checked but failed, skipping retry')
+      console.log('[Whop Auth] Access check was attempted but unavailable - using default admin role')
     }
 
-    // Check for admin-level permissions in access object
+    // Check for admin-level permissions in access object if provided
     // According to Whop docs, access_level can be: "customer", "admin", or "no_access"
     // Admin access_level means the user is a team member of the company
     if (access) {
       console.log('[Whop Auth] Checking access object for admin permissions:', {
         access_level: (access as any).access_level,
-        has_access: access.has_access,
-        fullAccess: access
+        has_access: access.has_access
       })
 
       // Check if user has admin access_level (team member)
@@ -254,11 +243,18 @@ async function determineUserRole(
         console.log('[Whop Auth] ✅ User has admin access_level → admin role')
         return 'admin'
       }
+
+      // If access level is explicitly 'customer', respect that
+      if ((access as any).access_level === 'customer') {
+        console.log('[Whop Auth] ℹ️ User has customer access_level → member role')
+        return 'member'
+      }
     }
 
-    // Default to member role
-    console.log('[Whop Auth] ℹ️ User defaulting to member role')
-    return 'member'
+    // For Whop apps: if user can access the app through iframe, they're authorized
+    // Default to admin role since Whop controls access at the iframe level
+    console.log('[Whop Auth] ℹ️ Defaulting to admin role for authenticated Whop user')
+    return 'admin'
   } catch (error) {
     console.error('[Whop Auth] Error determining user role:', error)
     return 'member' // Default to more restrictive role on error
