@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Plus, Calendar, User as UserIcon, ExternalLink, X, Copy, Check, ChevronDown, ChevronUp, Video, Link as LinkIcon, MapPin, Clock } from 'lucide-react'
 import { BookingWithRelations } from '@/lib/types/database'
 import { format } from 'date-fns'
-import CreateBookingModal from '../modals/CreateBookingModal'
+import CreateBookingDrawer from '../modals/CreateBookingDrawer'
 import { BookingSkeleton } from '../shared/ListItemSkeleton'
 
 interface UpcomingTabProps {
@@ -332,9 +332,9 @@ export default function UpcomingTab({ roleOverride, companyId }: UpcomingTabProp
         </div>
       )}
 
-      {/* Create Booking Modal */}
+      {/* Create Booking Drawer */}
       {isAdmin && (
-        <CreateBookingModal
+        <CreateBookingDrawer
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           onSuccess={loadBookings}

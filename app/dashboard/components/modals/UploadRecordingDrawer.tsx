@@ -48,7 +48,7 @@ function getEmbedUrl(url: string): string {
   }
 }
 
-interface UploadRecordingModalProps {
+interface UploadRecordingDrawerProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
@@ -56,13 +56,13 @@ interface UploadRecordingModalProps {
   bookingId?: string // Optional pre-selected booking
 }
 
-export default function UploadRecordingModal({
+export default function UploadRecordingDrawer({
   isOpen,
   onClose,
   onSuccess,
   companyId,
   bookingId,
-}: UploadRecordingModalProps) {
+}: UploadRecordingDrawerProps) {
   const [loading, setLoading] = useState(false)
   const supabase = createClient()
 

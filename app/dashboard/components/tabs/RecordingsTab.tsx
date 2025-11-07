@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Video, Upload, Play, Trash2, Clock, Filter, X, ExternalLink } from 'lucide-react'
 import { RecordingWithRelations, RecordingProvider, RecordingStatus } from '@/lib/types/database'
 import { format } from 'date-fns'
-import UploadRecordingModal from '../modals/UploadRecordingModal'
+import UploadRecordingDrawer from '../modals/UploadRecordingDrawer'
 import { RecordingSkeleton } from '../shared/ListItemSkeleton'
 import Drawer from '../shared/Drawer/Drawer'
 import DrawerHeader from '../shared/Drawer/DrawerHeader'
@@ -413,9 +413,9 @@ export default function RecordingsTab({ roleOverride, companyId }: RecordingsTab
         </Drawer>
       )}
 
-      {/* Upload Recording Modal */}
+      {/* Upload Recording Drawer */}
       {isAdmin && (
-        <UploadRecordingModal
+        <UploadRecordingDrawer
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           onSuccess={loadRecordings}

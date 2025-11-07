@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { X } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/client'
+import { Drawer, DrawerHeader, DrawerContent, DrawerFooter } from '../shared/Drawer'
 
 const bookingSchema = z.object({
   member_id: z.string().uuid('Please select a member'),
@@ -19,7 +19,7 @@ const bookingSchema = z.object({
 
 type BookingFormData = z.infer<typeof bookingSchema>
 
-interface CreateBookingModalProps {
+interface CreateBookingDrawerProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
@@ -27,13 +27,13 @@ interface CreateBookingModalProps {
   adminId?: string
 }
 
-export default function CreateBookingModal({
+export default function CreateBookingDrawer({
   isOpen,
   onClose,
   onSuccess,
   companyId,
   adminId,
-}: CreateBookingModalProps) {
+}: CreateBookingDrawerProps) {
   const [loading, setLoading] = useState(false)
   const [members, setMembers] = useState<Array<{ id: string; name: string; email: string }>>([])
   const [slots, setSlots] = useState<Array<{ id: string; start_time: string; end_time: string }>>([])
@@ -103,15 +103,10 @@ export default function CreateBookingModal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="card max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-white">Create Booking</h2>
-          <button onClick={onClose} className="btn-ghost p-2">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <Drawer open={isOpen} onClose={onClose} width="lg">
+      <DrawerHeader title="Create Booking" onClose={onClose} />
 
+      <DrawerContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {/* Member Selection */}
           <div>
@@ -210,27 +205,30 @@ export default function CreateBookingModal({
               <p className="text-red-400 text-sm mt-1">{errors.notes.message}</p>
             )}
           </div>
-
-          {/* Actions */}
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="btn-secondary flex-1"
-              disabled={loading}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="btn-primary flex-1"
-              disabled={loading}
-            >
-              {loading ? 'Creating...' : 'Create Booking'}
-            </button>
-          </div>
         </form>
-      </div>
-    </div>
+      </DrawerContent>
+
+      <DrawerFooter>
+        {/* Actions */}
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="btn-secondary flex-1"
+            disabled={loading}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            onClick={handleSubmit(onSubmit)}
+            className="btn-primary flex-1"
+            disabled={loading}
+          >
+            {loading ? 'Creating...' : 'Create Booking'}
+          </button>
+        </div>
+      </DrawerFooter>
+    </Drawer>
   )
 }

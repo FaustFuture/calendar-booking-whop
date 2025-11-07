@@ -5,7 +5,7 @@ import { Plus, Clock, Trash2, Edit2, Calendar, DollarSign, Video, Link as LinkIc
 import { AvailabilityPattern } from '@/lib/types/database'
 import { format } from 'date-fns'
 import CreateSlotDrawer from '../modals/CreateSlotDrawer'
-import ViewSlotsModal from '../modals/ViewSlotsModal'
+import ViewSlotsDrawer from '../modals/ViewSlotsDrawer'
 import { AvailabilityPatternSkeleton } from '../shared/ListItemSkeleton'
 import { useWhopUser } from '@/lib/context/WhopUserContext'
 
@@ -15,9 +15,10 @@ interface AvailabilityTabProps {
   hideHeader?: boolean
   onEditPattern?: (pattern: AvailabilityPattern) => void
   onBookingSuccess?: () => void
+  onCreateAvailability?: () => void
 }
 
-export default function AvailabilityTab({ roleOverride, companyId, hideHeader, onEditPattern, onBookingSuccess }: AvailabilityTabProps) {
+export default function AvailabilityTab({ roleOverride, companyId, hideHeader, onEditPattern, onBookingSuccess, onCreateAvailability }: AvailabilityTabProps) {
   const { user } = useWhopUser() // Get current user from context
   const [patterns, setPatterns] = useState<AvailabilityPattern[]>([])
   const [loading, setLoading] = useState(true)
@@ -229,7 +230,13 @@ export default function AvailabilityTab({ roleOverride, companyId, hideHeader, o
             </p>
             {isAdmin && (
               <button
-                onClick={() => setIsModalOpen(true)}
+                onClick={() => {
+                  if (onCreateAvailability) {
+                    onCreateAvailability()
+                  } else {
+                    setIsModalOpen(true)
+                  }
+                }}
                 className="mt-8 px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-semibold inline-flex items-center gap-2 transition-colors"
               >
                 <Plus className="w-5 h-5" />
@@ -357,8 +364,8 @@ export default function AvailabilityTab({ roleOverride, companyId, hideHeader, o
         />
       )}
 
-      {/* View Slots Modal - for members to browse and book slots */}
-      <ViewSlotsModal
+      {/* View Slots Drawer - for members to browse and book slots */}
+      <ViewSlotsDrawer
         isOpen={isViewSlotsModalOpen}
         onClose={handleCloseViewSlots}
         pattern={selectedPattern}

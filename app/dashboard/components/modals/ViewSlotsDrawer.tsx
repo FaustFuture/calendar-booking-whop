@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Calendar, Clock, DollarSign, User, Video, Link as LinkIcon, MapPin } from 'lucide-react'
+import { Calendar, Clock, DollarSign, User, Video, Link as LinkIcon, MapPin } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { AvailabilityPattern } from '@/lib/types/database'
 import { format, addDays, startOfWeek, isSameDay, parse, setHours, setMinutes } from 'date-fns'
+import { Drawer, DrawerHeader, DrawerContent, DrawerFooter } from '../shared/Drawer'
 
 interface Slot {
   id: string // Format: pattern_id:YYYY-MM-DD:HH:mm
@@ -13,7 +14,7 @@ interface Slot {
   is_booked: boolean
 }
 
-interface ViewSlotsModalProps {
+interface ViewSlotsDrawerProps {
   isOpen: boolean
   onClose: () => void
   pattern: AvailabilityPattern | null
@@ -23,7 +24,7 @@ interface ViewSlotsModalProps {
   currentUserEmail?: string | null  // Pass the current user email from parent
 }
 
-export default function ViewSlotsModal({
+export default function ViewSlotsDrawer({
   isOpen,
   onClose,
   pattern,
@@ -31,7 +32,7 @@ export default function ViewSlotsModal({
   onBookingSuccess,
   currentUserId = null,
   currentUserEmail = null
-}: ViewSlotsModalProps) {
+}: ViewSlotsDrawerProps) {
   const [slots, setSlots] = useState<Slot[]>([])
   const [loading, setLoading] = useState(false)
   const [booking, setBooking] = useState(false)
@@ -42,7 +43,7 @@ export default function ViewSlotsModal({
   const isGuest = !currentUserId  // Determine from passed prop
   const supabase = createClient()
 
-  console.log('🔐 ViewSlotsModal user context:', {
+  console.log('🔐 ViewSlotsDrawer user context:', {
     currentUserId,
     currentUserEmail,
     isGuest
@@ -309,44 +310,33 @@ export default function ViewSlotsModal({
   const MeetingIcon = meetingDisplay.icon
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-zinc-900 rounded-xl border border-zinc-800 w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="p-6 border-b border-zinc-800">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <h2 className="text-2xl font-bold text-white mb-2">{pattern.title}</h2>
-              {pattern.description && (
-                <p className="text-zinc-400 text-sm mb-3">{pattern.description}</p>
-              )}
-              <div className="flex items-center gap-4 text-sm">
-                <span className="flex items-center gap-1.5 text-zinc-300">
-                  <Clock className="w-4 h-4 text-zinc-400" />
-                  {pattern.duration_minutes} min
-                </span>
-                {pattern.price && pattern.price > 0 && (
-                  <span className="flex items-center gap-1.5 text-zinc-300">
-                    <DollarSign className="w-4 h-4 text-zinc-400" />
-                    ${pattern.price}
-                  </span>
-                )}
-                <span className={`flex items-center gap-1.5 ${meetingDisplay.color}`}>
-                  <MeetingIcon className="w-4 h-4" />
-                  {meetingDisplay.label}
-                </span>
-              </div>
-            </div>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
-            >
-              <X className="w-5 h-5 text-zinc-400" />
-            </button>
-          </div>
+    <Drawer open={isOpen} onClose={onClose} width="xl">
+      {/* Header */}
+      <DrawerHeader title={pattern.title} onClose={onClose}>
+        {pattern.description && (
+          <p className="text-zinc-400 text-sm mb-3">{pattern.description}</p>
+        )}
+        <div className="flex items-center gap-4 text-sm">
+          <span className="flex items-center gap-1.5 text-zinc-300">
+            <Clock className="w-4 h-4 text-zinc-400" />
+            {pattern.duration_minutes} min
+          </span>
+          {pattern.price && pattern.price > 0 && (
+            <span className="flex items-center gap-1.5 text-zinc-300">
+              <DollarSign className="w-4 h-4 text-zinc-400" />
+              ${pattern.price}
+            </span>
+          )}
+          <span className={`flex items-center gap-1.5 ${meetingDisplay.color}`}>
+            <MeetingIcon className="w-4 h-4" />
+            {meetingDisplay.label}
+          </span>
         </div>
+      </DrawerHeader>
 
+      <DrawerContent>
         {/* Week Navigation */}
-        <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+        <div className="mb-4 -mx-6 px-6 pb-4 border-b border-zinc-800 flex items-center justify-between">
           <button
             onClick={previousWeek}
             disabled={isPreviousWeekDisabled()}
@@ -366,7 +356,7 @@ export default function ViewSlotsModal({
         </div>
 
         {/* Slots Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div>
           {loading ? (
             <div className="text-center py-12">
               <div className="animate-spin w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full mx-auto"></div>
@@ -410,10 +400,12 @@ export default function ViewSlotsModal({
             </div>
           )}
         </div>
+      </DrawerContent>
 
         {/* Footer */}
         {selectedSlot && (
-          <div className="p-6 border-t border-zinc-800 bg-zinc-900/50 space-y-4">
+          <DrawerFooter>
+            <div className="space-y-4">
             {/* Selected time info */}
             <div className="text-sm">
               <p className="text-zinc-400 mb-1">Selected time:</p>
@@ -482,9 +474,9 @@ export default function ViewSlotsModal({
                 {booking ? 'Booking...' : 'Book Slot'}
               </button>
             </div>
-          </div>
+            </div>
+          </DrawerFooter>
         )}
-      </div>
-    </div>
+    </Drawer>
   )
 }

@@ -152,6 +152,7 @@ export default function DashboardTabs({ companyId }: DashboardTabsProps) {
             hideHeader
             onEditPattern={handleEditPattern}
             onBookingSuccess={handleBookingSuccess}
+            onCreateAvailability={() => setIsModalOpen(true)}
           />
         )}
         {activeTab === 'upcoming' && (
