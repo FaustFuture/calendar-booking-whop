@@ -62,6 +62,7 @@ export interface Booking {
 
 export interface Recording {
   id: string
+  company_id?: string // Whop company ID (biz_xxx) for multi-tenant isolation
   booking_id?: string // Optional - can be standalone recording
   url: string
   title: string

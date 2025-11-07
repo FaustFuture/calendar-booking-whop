@@ -7,6 +7,7 @@ import { CheckCircle2, Loader2 } from 'lucide-react'
 function OAuthSuccessContent() {
   const searchParams = useSearchParams()
   const provider = searchParams.get('provider')
+  const companyId = searchParams.get('companyId')
 
   useEffect(() => {
     // Send success message to parent window
@@ -24,12 +25,15 @@ function OAuthSuccessContent() {
         window.close()
       }, 500)
     } else {
-      // If not in a popup, redirect to integrations page
+      // If not in a popup, redirect to integrations page with companyId
       setTimeout(() => {
-        window.location.href = `/dashboard/settings/integrations?success=${provider}`
+        const redirectUrl = companyId
+          ? `/dashboard/${companyId}/settings/integrations?success=${provider}`
+          : `/dashboard/settings/integrations?success=${provider}`
+        window.location.href = redirectUrl
       }, 1500)
     }
-  }, [provider])
+  }, [provider, companyId])
 
   return (
     <div className="min-h-screen bg-zinc-900 flex items-center justify-center p-4">

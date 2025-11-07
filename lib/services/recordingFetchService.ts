@@ -10,7 +10,7 @@ export class RecordingFetchService {
   /**
    * Fetch recordings for a completed booking
    */
-  async fetchRecordingsForBooking(bookingId: string): Promise<void> {
+  async fetchRecordingsForBooking(bookingId: string, companyId?: string): Promise<void> {
     const supabase = await createClient()
 
     // Get booking details with pattern
@@ -51,9 +51,9 @@ export class RecordingFetchService {
 
     try {
       if (meetingType === 'zoom' && meetingUrl.includes('zoom.us')) {
-        await this.fetchZoomRecording(booking, meetingUrl)
+        await this.fetchZoomRecording(booking, meetingUrl, companyId)
       } else if (meetingType === 'google_meet' && meetingUrl.includes('meet.google.com')) {
-        await this.fetchGoogleRecording(booking, meetingUrl)
+        await this.fetchGoogleRecording(booking, meetingUrl, companyId)
       }
     } catch (error) {
       console.error(`Failed to fetch recording for booking ${bookingId}:`, error)
@@ -63,7 +63,7 @@ export class RecordingFetchService {
   /**
    * Fetch Zoom recording
    */
-  private async fetchZoomRecording(booking: any, meetingUrl: string): Promise<void> {
+  private async fetchZoomRecording(booking: any, meetingUrl: string, companyId?: string): Promise<void> {
     // Extract meeting ID from Zoom URL
     // Example: https://zoom.us/j/1234567890 or https://us05web.zoom.us/j/1234567890
     const meetingIdMatch = meetingUrl.match(/\/j\/(\d+)/)
@@ -82,7 +82,8 @@ export class RecordingFetchService {
       const recordings = await zoomRecordingService.fetchAndSaveRecordings(
         booking.id,
         meetingId,
-        booking.admin_id
+        booking.admin_id,
+        companyId
       )
 
       if (recordings.length > 0) {
@@ -103,7 +104,7 @@ export class RecordingFetchService {
   /**
    * Fetch Google Meet recording
    */
-  private async fetchGoogleRecording(booking: any, meetingUrl: string): Promise<void> {
+  private async fetchGoogleRecording(booking: any, meetingUrl: string, companyId?: string): Promise<void> {
     // Extract meeting code from Google Meet URL
     // Example: https://meet.google.com/abc-defg-hij
     const meetingCode = googleRecordingService.extractMeetingCode(meetingUrl)
@@ -119,7 +120,8 @@ export class RecordingFetchService {
       const recordings = await googleRecordingService.fetchAndSaveRecordings(
         booking.id,
         meetingCode,
-        booking.admin_id
+        booking.admin_id,
+        companyId
       )
 
       if (recordings.length > 0) {

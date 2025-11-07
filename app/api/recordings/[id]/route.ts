@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { requireWhopAuth, syncWhopUserToSupabase } from '@/lib/auth/whop'
 
 // GET /api/recordings/:id - Get single recording
 export async function GET(
@@ -8,13 +9,22 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const supabase = await createClient()
+    const { searchParams } = new URL(request.url)
+    const companyId = searchParams.get('companyId')
 
-    // Get authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Require companyId for Whop multi-tenancy
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'companyId is required' },
+        { status: 400 }
+      )
     }
+
+    // Verify Whop authentication and company access
+    const whopUser = await requireWhopAuth(companyId)
+    await syncWhopUserToSupabase(whopUser)
+
+    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('recordings')
@@ -28,10 +38,16 @@ export async function GET(
         )
       `)
       .eq('id', id)
+      .eq('company_id', companyId) // CRITICAL: Verify company ownership
       .single()
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 404 })
+    }
+
+    // Members only see recordings for their bookings
+    if (whopUser.role === 'member' && data.booking?.member_id !== whopUser.userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     return NextResponse.json({ data })
@@ -50,34 +66,36 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params
-    const supabase = await createClient()
     const body = await request.json()
+    const { companyId } = body
 
-    // Get authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Require companyId for Whop multi-tenancy
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'companyId is required' },
+        { status: 400 }
+      )
     }
 
-    // Get user role
-    const { data: userData } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single()
+    // Verify Whop authentication and company access
+    const whopUser = await requireWhopAuth(companyId)
+    await syncWhopUserToSupabase(whopUser)
 
     // Only admins can update recordings
-    if (userData?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (whopUser.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
-    // Extract companyId from body (used for auth only, not a DB column)
-    const { companyId: _, ...updateData } = body
+    const supabase = await createClient()
+
+    // Extract companyId from body (don't allow changing company_id)
+    const { companyId: _, company_id: __, ...updateData } = body
 
     const { data, error } = await supabase
       .from('recordings')
       .update(updateData)
       .eq('id', id)
+      .eq('company_id', companyId) // CRITICAL: Verify company ownership before update
       .select()
       .single()
 
@@ -101,30 +119,33 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    const supabase = await createClient()
+    const body = await request.json()
+    const { companyId } = body
 
-    // Get authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Require companyId for Whop multi-tenancy
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'companyId is required' },
+        { status: 400 }
+      )
     }
 
-    // Get user role
-    const { data: userData } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single()
+    // Verify Whop authentication and company access
+    const whopUser = await requireWhopAuth(companyId)
+    await syncWhopUserToSupabase(whopUser)
 
     // Only admins can delete recordings
-    if (userData?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (whopUser.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
+
+    const supabase = await createClient()
 
     const { error } = await supabase
       .from('recordings')
       .delete()
       .eq('id', id)
+      .eq('company_id', companyId) // CRITICAL: Verify company ownership before delete
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 })

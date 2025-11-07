@@ -15,35 +15,39 @@ export async function GET(request: NextRequest) {
     const state = searchParams.get('state')
     const error = searchParams.get('error')
 
+    // Try to extract companyId from state for error redirects
+    let companyId: string | undefined
+    if (state) {
+      const stateParts = state.split(':')
+      companyId = stateParts[1]
+    }
+
     // Handle OAuth errors
     if (error) {
-      return NextResponse.redirect(
-        new URL(
-          `/auth/oauth-error?error=${encodeURIComponent(error)}&provider=google`,
-          request.url
-        )
-      )
+      const errorUrl = companyId
+        ? `/auth/oauth-error?error=${encodeURIComponent(error)}&provider=google&companyId=${companyId}`
+        : `/auth/oauth-error?error=${encodeURIComponent(error)}&provider=google`
+      return NextResponse.redirect(new URL(errorUrl, request.url))
     }
 
     if (!code || !state) {
-      return NextResponse.redirect(
-        new URL(
-          '/auth/oauth-error?error=missing_parameters&provider=google',
-          request.url
-        )
-      )
+      const errorUrl = companyId
+        ? `/auth/oauth-error?error=missing_parameters&provider=google&companyId=${companyId}`
+        : '/auth/oauth-error?error=missing_parameters&provider=google'
+      return NextResponse.redirect(new URL(errorUrl, request.url))
     }
 
     // Verify state parameter (extract user ID and company ID)
     // State format: userId:companyId:timestamp:random
     const stateParts = state.split(':')
     const userId = stateParts[0]
-    const companyId = stateParts[1]
+    companyId = stateParts[1]
 
     if (!userId || !companyId) {
-      return NextResponse.redirect(
-        new URL('/auth/oauth-error?error=invalid_state&provider=google', request.url)
-      )
+      const errorUrl = companyId
+        ? `/auth/oauth-error?error=invalid_state&provider=google&companyId=${companyId}`
+        : '/auth/oauth-error?error=invalid_state&provider=google'
+      return NextResponse.redirect(new URL(errorUrl, request.url))
     }
 
     const supabase = await createClient()
@@ -126,11 +130,17 @@ export async function GET(request: NextRequest) {
     )
   } catch (error) {
     console.error('Google OAuth callback error:', error)
-    return NextResponse.redirect(
-      new URL(
-        `/auth/oauth-error?error=${encodeURIComponent('callback_failed')}&provider=google`,
-        request.url
-      )
-    )
+    // Try to extract companyId from URL state parameter for error redirect
+    const searchParams = request.nextUrl.searchParams
+    const state = searchParams.get('state')
+    let companyId: string | undefined
+    if (state) {
+      const stateParts = state.split(':')
+      companyId = stateParts[1]
+    }
+    const errorUrl = companyId
+      ? `/auth/oauth-error?error=${encodeURIComponent('callback_failed')}&provider=google&companyId=${companyId}`
+      : `/auth/oauth-error?error=${encodeURIComponent('callback_failed')}&provider=google`
+    return NextResponse.redirect(new URL(errorUrl, request.url))
   }
 }

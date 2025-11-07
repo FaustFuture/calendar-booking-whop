@@ -37,8 +37,8 @@ export default function RecordingsTab({ roleOverride, companyId }: RecordingsTab
         throw new Error('Failed to fetch recordings')
       }
 
-      const data = await response.json()
-      setRecordings(data.recordings || [])
+      const result = await response.json()
+      setRecordings(result.data || [])
     } catch (error) {
       console.error('Error loading recordings:', error)
     } finally {

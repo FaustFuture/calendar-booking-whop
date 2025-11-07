@@ -162,7 +162,8 @@ export class ZoomRecordingService {
    */
   async saveRecordingToDatabase(
     zoomRecording: ZoomRecordingResponse,
-    bookingId: string
+    bookingId: string,
+    companyId?: string
   ): Promise<Recording[]> {
     const supabase = await createClient()
     const savedRecordings: Recording[] = []
@@ -183,6 +184,7 @@ export class ZoomRecordingService {
 
       const recordingData = {
         booking_id: bookingId,
+        company_id: companyId, // Store company_id for multi-tenant isolation
         provider: 'zoom' as const,
         external_id: file.id,
         meeting_provider_id: zoomRecording.id,
@@ -298,14 +300,14 @@ export class ZoomRecordingService {
   /**
    * Fetch and save recordings for a booking
    */
-  async fetchAndSaveRecordings(bookingId: string, meetingProviderId: string, userId: string): Promise<Recording[]> {
+  async fetchAndSaveRecordings(bookingId: string, meetingProviderId: string, userId: string, companyId?: string): Promise<Recording[]> {
     const zoomData = await this.fetchMeetingRecordings(meetingProviderId, userId)
 
     if (!zoomData || zoomData.recording_files.length === 0) {
       return []
     }
 
-    return await this.saveRecordingToDatabase(zoomData, bookingId)
+    return await this.saveRecordingToDatabase(zoomData, bookingId, companyId)
   }
 }
 

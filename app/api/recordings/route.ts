@@ -40,6 +40,9 @@ export async function GET(request: Request) {
       `)
       .order('uploaded_at', { ascending: false })
 
+    // CRITICAL: Filter by company_id for multi-tenant isolation
+    query = query.eq('company_id', companyId)
+
     // Filter by booking if provided
     if (bookingId) {
       query = query.eq('booking_id', bookingId)
@@ -105,12 +108,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
-    // Extract companyId from body (used for auth only, not a DB column)
+    // Extract companyId from body and save it to database
     const { companyId: _, ...bodyData } = body
 
     // Set defaults for manual uploads
     const recordingData = {
       ...bodyData,
+      company_id: companyId, // Store company_id for multi-tenant isolation
       provider: bodyData.provider || 'manual',
       status: bodyData.status || 'available',
       recording_type: bodyData.recording_type || 'cloud',

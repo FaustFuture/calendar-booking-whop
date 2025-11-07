@@ -16,6 +16,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 function OAuthErrorContent() {
   const searchParams = useSearchParams()
   const provider = searchParams.get('provider')
+  const companyId = searchParams.get('companyId')
   const error = searchParams.get('error') || 'unknown_error'
   const errorMessage = ERROR_MESSAGES[error] || 'An unknown error occurred'
 
@@ -36,12 +37,15 @@ function OAuthErrorContent() {
         window.close()
       }, 2000)
     } else {
-      // If not in a popup, redirect to integrations page
+      // If not in a popup, redirect to integrations page with companyId
       setTimeout(() => {
-        window.location.href = `/dashboard/settings/integrations?error=${error}`
+        const redirectUrl = companyId
+          ? `/dashboard/${companyId}/settings/integrations?error=${error}`
+          : `/dashboard/settings/integrations?error=${error}`
+        window.location.href = redirectUrl
       }, 2000)
     }
-  }, [provider, error])
+  }, [provider, companyId, error])
 
   return (
     <div className="min-h-screen bg-zinc-900 flex items-center justify-center p-4">

@@ -199,7 +199,8 @@ export class GoogleRecordingService {
   async saveRecordingToDatabase(
     driveFile: GoogleDriveFile,
     bookingId: string,
-    meetingCode?: string
+    meetingCode?: string,
+    companyId?: string
   ): Promise<Recording> {
     const supabase = await createClient()
 
@@ -213,6 +214,7 @@ export class GoogleRecordingService {
 
     const recordingData = {
       booking_id: bookingId,
+      company_id: companyId, // Store company_id for multi-tenant isolation
       provider: 'google' as const,
       external_id: driveFile.id,
       meeting_provider_id: meetingCode,
@@ -271,7 +273,7 @@ export class GoogleRecordingService {
   /**
    * Fetch and save recordings for a booking by meeting code
    */
-  async fetchAndSaveRecordings(bookingId: string, meetingCode: string, userId: string): Promise<Recording[]> {
+  async fetchAndSaveRecordings(bookingId: string, meetingCode: string, userId: string, companyId?: string): Promise<Recording[]> {
     const driveFiles = await this.searchMeetingRecordings(meetingCode, userId)
 
     if (driveFiles.length === 0) {
@@ -281,7 +283,7 @@ export class GoogleRecordingService {
     const savedRecordings: Recording[] = []
 
     for (const file of driveFiles) {
-      const recording = await this.saveRecordingToDatabase(file, bookingId, meetingCode)
+      const recording = await this.saveRecordingToDatabase(file, bookingId, meetingCode, companyId)
       savedRecordings.push(recording)
     }
 

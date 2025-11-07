@@ -6,12 +6,13 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { requireWhopAuth, syncWhopUserToSupabase } from '@/lib/auth/whop'
 import { recordingFetchService } from '@/lib/services/recordingFetchService'
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
-    const { bookingId } = await request.json()
+    const body = await request.json()
+    const { bookingId, companyId } = body
 
     if (!bookingId) {
       return NextResponse.json(
@@ -20,32 +21,33 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'companyId is required' },
+        { status: 400 }
+      )
     }
 
-    // Get user role
-    const { data: userData } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single()
+    // Verify Whop authentication and company access
+    const whopUser = await requireWhopAuth(companyId)
+    await syncWhopUserToSupabase(whopUser)
 
     // Only admins can manually fetch recordings
-    if (userData?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (whopUser.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
-    // Fetch recordings
-    await recordingFetchService.fetchRecordingsForBooking(bookingId)
+    // Fetch recordings with company_id
+    await recordingFetchService.fetchRecordingsForBooking(bookingId, companyId)
+
+    const supabase = await createClient()
 
     // Get the recordings that were just fetched
     const { data: recordings } = await supabase
       .from('recordings')
       .select('*')
       .eq('booking_id', bookingId)
+      .eq('company_id', companyId)
 
     return NextResponse.json({
       success: true,
