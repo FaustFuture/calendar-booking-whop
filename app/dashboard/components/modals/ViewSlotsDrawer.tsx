@@ -52,9 +52,25 @@ export default function ViewSlotsDrawer({
   // Reset to current week and load slots when modal opens
   useEffect(() => {
     if (isOpen && pattern) {
-      // Reset to current week when modal opens
-      const today = startOfWeek(new Date(), { weekStartsOn: 1 })
-      setCurrentWeekStart(today)
+      // Determine the best week to display
+      const today = new Date()
+      const currentWeek = startOfWeek(today, { weekStartsOn: 1 })
+
+      // If pattern has a start date in the future, start from that week
+      if (pattern.start_date) {
+        const patternStart = new Date(pattern.start_date)
+        const patternWeek = startOfWeek(patternStart, { weekStartsOn: 1 })
+
+        // Use the later of current week or pattern start week
+        if (patternWeek > currentWeek) {
+          setCurrentWeekStart(patternWeek)
+        } else {
+          setCurrentWeekStart(currentWeek)
+        }
+      } else {
+        setCurrentWeekStart(currentWeek)
+      }
+
       loadSlots()
     }
   }, [isOpen, pattern])
@@ -84,6 +100,10 @@ export default function ViewSlotsDrawer({
       console.log('📅 Current week start:', currentWeekStart.toISOString())
       console.log('📅 Week end:', addDays(currentWeekStart, 7).toISOString())
 
+      // Get pattern date range boundaries
+      const patternStartDate = pattern.start_date ? new Date(pattern.start_date) : null
+      const patternEndDate = pattern.end_date ? new Date(pattern.end_date) : null
+
       // Map day names to date-fns day indices (Mon=1, Tue=2, etc.)
       const dayMap: Record<string, number> = {
         'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6, 'Sun': 0
@@ -95,6 +115,25 @@ export default function ViewSlotsDrawer({
         const dayName = format(currentDay, 'EEE') // Mon, Tue, etc.
 
         console.log(`📆 Day ${dayOffset}: ${currentDay.toISOString()} -> ${dayName}`)
+
+        // Check if this day is within the pattern's date range
+        const currentDayDate = new Date(currentDay.getFullYear(), currentDay.getMonth(), currentDay.getDate())
+
+        if (patternStartDate) {
+          const startDateOnly = new Date(patternStartDate.getFullYear(), patternStartDate.getMonth(), patternStartDate.getDate())
+          if (currentDayDate < startDateOnly) {
+            console.log(`  ⏭️ Skipping ${dayName} - before pattern start date`)
+            continue
+          }
+        }
+
+        if (patternEndDate) {
+          const endDateOnly = new Date(patternEndDate.getFullYear(), patternEndDate.getMonth(), patternEndDate.getDate())
+          if (currentDayDate > endDateOnly) {
+            console.log(`  ⏭️ Skipping ${dayName} - after pattern end date`)
+            continue
+          }
+        }
 
         // Check if this day has availability in the pattern
         const daySchedule = weeklySchedule[dayName]
