@@ -43,6 +43,7 @@ export default function AvailabilityTab({ roleOverride, companyId, hideHeader, o
   // Filter patterns based on role
   const allPatterns = data?.patterns || []
   const now = new Date()
+  // Normalize today to midnight for accurate date comparison
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 
   const patterns = roleOverride === 'member'
@@ -52,13 +53,31 @@ export default function AvailabilityTab({ roleOverride, companyId, hideHeader, o
 
         // Check if pattern has ended
         if (pattern.end_date) {
-          const endDate = new Date(pattern.end_date)
-          if (endDate < today) return false
+          let endDate: Date
+          if (typeof pattern.end_date === 'string') {
+            const [year, month, day] = pattern.end_date.split('-').map(Number)
+            endDate = new Date(year, month - 1, day)
+          } else {
+            endDate = new Date(pattern.end_date)
+          }
+          // Normalize end date to midnight for comparison
+          const endDateOnly = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate())
+          if (endDateOnly.getTime() < today.getTime()) return false
         }
 
-        // Check if pattern has started
-        const startDate = new Date(pattern.start_date)
-        if (startDate > today) return false
+        // Check if pattern has started (include today)
+        // Parse start_date - handle date strings properly to avoid timezone issues
+        let startDate: Date
+        if (typeof pattern.start_date === 'string') {
+          // Parse date string as local date (not UTC)
+          const [year, month, day] = pattern.start_date.split('-').map(Number)
+          startDate = new Date(year, month - 1, day) // month is 0-indexed
+        } else {
+          startDate = new Date(pattern.start_date)
+        }
+        // Normalize start date to midnight for comparison
+        const startDateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
+        if (startDateOnly.getTime() > today.getTime()) return false // If start date is after today, exclude it
 
         return true
       })
@@ -132,20 +151,44 @@ export default function AvailabilityTab({ roleOverride, companyId, hideHeader, o
 
   function getPatternStatus(pattern: AvailabilityPattern) {
     const now = new Date()
+    // Normalize today to midnight for accurate date comparison (local time)
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const startDate = new Date(pattern.start_date)
+    
+    // Parse start_date - handle both date strings and Date objects
+    // If it's a date string like "2025-01-08", parse it as local date
+    let startDate: Date
+    if (typeof pattern.start_date === 'string') {
+      // Parse date string and create local date (not UTC)
+      const [year, month, day] = pattern.start_date.split('-').map(Number)
+      startDate = new Date(year, month - 1, day) // month is 0-indexed
+    } else {
+      startDate = new Date(pattern.start_date)
+    }
+    
+    // Normalize start date to midnight for comparison (local time)
+    const startDateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
 
     if (!pattern.is_active) {
       return { label: 'Inactive', color: 'text-zinc-500', bgColor: 'bg-zinc-500/10' }
     }
 
-    if (startDate > today) {
+    // If start date is after today (not including today), show "Not Started"
+    // Use >= to include today as active
+    if (startDateOnly.getTime() > today.getTime()) {
       return { label: 'Not Started', color: 'text-yellow-500', bgColor: 'bg-yellow-500/10' }
     }
 
     if (pattern.end_date) {
-      const endDate = new Date(pattern.end_date)
-      if (endDate < today) {
+      let endDate: Date
+      if (typeof pattern.end_date === 'string') {
+        const [year, month, day] = pattern.end_date.split('-').map(Number)
+        endDate = new Date(year, month - 1, day)
+      } else {
+        endDate = new Date(pattern.end_date)
+      }
+      // Normalize end date to midnight for comparison
+      const endDateOnly = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate())
+      if (endDateOnly.getTime() < today.getTime()) {
         return { label: 'Expired', color: 'text-red-500', bgColor: 'bg-red-500/10' }
       }
     }

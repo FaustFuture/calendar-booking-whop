@@ -64,7 +64,7 @@ export async function GET(request: Request) {
         notification_15min_sent,
         notification_2min_sent,
         member:member_id(id, name, email),
-        pattern:pattern_id(admin_id)
+        pattern:pattern_id(company_id)
       `)
       .eq('status', 'upcoming')
       .not('booking_start_time', 'is', null)
@@ -104,16 +104,8 @@ export async function GET(request: Request) {
         bookingStartTime >= twoMinWindowStart.getTime() &&
         bookingStartTime <= twoMinWindowEnd.getTime()
 
-      // Get admin ID from pattern
-      let adminId: string | undefined
-      if (booking.pattern && typeof booking.pattern === 'object' && 'admin_id' in booking.pattern) {
-        adminId = (booking.pattern as any).admin_id
-      }
-
-      // If no admin from pattern, try to find an admin in the company
-      // Note: We need to find the admin who created the pattern/slot
-      // For now, we'll send to all admins in the company via companyTeamId
-      // The notification service will handle sending to admins separately
+      // We'll send notifications to all admins in the company via companyTeamId
+      // The notification service's sendNotificationToAdmins handles this
 
       // Send 15-minute notification
       if (isIn15MinWindow && !booking.notification_15min_sent) {
