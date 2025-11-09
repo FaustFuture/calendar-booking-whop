@@ -4,7 +4,6 @@
  * Reference: https://docs.whop.com/apps/features/send-push-notification
  */
 
-import { whopsdk } from '@/lib/whop-sdk'
 import { createClient } from '@/lib/supabase/server'
 
 export class NotificationService {
@@ -20,16 +19,35 @@ export class NotificationService {
     isMention: boolean = false
   ): Promise<void> {
     try {
-      // Use Whop SDK to send push notification
+      // Use Whop REST API to send push notification
       // Reference: https://docs.whop.com/apps/features/send-push-notification
-      await whopsdk.notifications.sendPushNotification({
-        title,
-        content,
-        companyTeamId: companyId, // Send to company team
-        userIds: [userId], // Filter to specific user
-        restPath,
-        isMention,
+      const apiKey = process.env.WHOP_API_KEY
+      if (!apiKey) {
+        throw new Error('WHOP_API_KEY is not configured')
+      }
+
+      // Whop API endpoint for push notifications
+      // Reference: https://docs.whop.com/apps/features/send-push-notification
+      const response = await fetch('https://api.whop.com/api/v2/apps/notifications/push', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title,
+          content,
+          companyTeamId: companyId,
+          userIds: [userId],
+          restPath,
+          isMention,
+        }),
       })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
+        throw new Error(`Failed to send notification: ${errorData.message || response.statusText}`)
+      }
 
       console.log(`✅ Notification sent to user ${userId}:`, { title, content })
     } catch (error) {
@@ -49,13 +67,34 @@ export class NotificationService {
     isMention: boolean = false
   ): Promise<void> {
     try {
-      await whopsdk.notifications.sendPushNotification({
-        title,
-        content,
-        companyTeamId: companyId, // This sends to all admins in the company
-        restPath,
-        isMention,
+      // Use Whop REST API to send push notification
+      // Reference: https://docs.whop.com/apps/features/send-push-notification
+      const apiKey = process.env.WHOP_API_KEY
+      if (!apiKey) {
+        throw new Error('WHOP_API_KEY is not configured')
+      }
+
+      // Whop API endpoint for push notifications
+      // Reference: https://docs.whop.com/apps/features/send-push-notification
+      const response = await fetch('https://api.whop.com/api/v2/apps/notifications/push', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title,
+          content,
+          companyTeamId: companyId, // This sends to all admins in the company
+          restPath,
+          isMention,
+        }),
       })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
+        throw new Error(`Failed to send notification: ${errorData.message || response.statusText}`)
+      }
 
       console.log(`✅ Notification sent to admins in company ${companyId}:`, { title, content })
     } catch (error) {

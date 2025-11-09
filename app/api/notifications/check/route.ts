@@ -12,6 +12,9 @@
  */
 
 import { NextResponse } from 'next/server'
+
+// Force dynamic rendering to prevent caching in cron jobs
+export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
 import { notificationService } from '@/lib/services/notificationService'
 
