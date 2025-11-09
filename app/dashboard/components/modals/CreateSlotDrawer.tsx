@@ -111,7 +111,7 @@ export default function CreateSlotDrawer({
           }
         }
         
-        if (meetingConfig?.manualValue) {
+        if (typeof meetingConfig === 'object' && meetingConfig !== null && 'manualValue' in meetingConfig && meetingConfig.manualValue) {
           setMeetingValue(meetingConfig.manualValue)
         }
 
