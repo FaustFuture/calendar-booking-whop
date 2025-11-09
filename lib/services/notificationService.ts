@@ -5,6 +5,7 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
+import { whopsdk, whopSdk_server } from '@/lib/whop-sdk'
 
 export class NotificationService {
   /**
@@ -19,35 +20,25 @@ export class NotificationService {
     isMention: boolean = false
   ): Promise<void> {
     try {
-      // Use Whop REST API to send push notification
+      // Use Whop SDK to send push notification
       // Reference: https://docs.whop.com/apps/features/send-push-notification
-      const apiKey = process.env.WHOP_API_KEY
-      if (!apiKey) {
-        throw new Error('WHOP_API_KEY is not configured')
+      const notificationPayload: any = {
+        title,
+        content,
+        companyTeamId: companyId,
+        userIds: [userId],
       }
+      
+      // if (restPath) {
+      //   notificationPayload.restPath = restPath
+      // }
+      
+      // if (isMention) {
+      //   notificationPayload.isMention = isMention
+      // }
 
-      // Whop API endpoint for push notifications
-      // Reference: https://docs.whop.com/apps/features/send-push-notification
-      const response = await fetch('https://api.whop.com/api/v2/apps/notifications/push', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title,
-          content,
-          companyTeamId: companyId,
-          userIds: [userId],
-          restPath,
-          isMention,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
-        throw new Error(`Failed to send notification: ${errorData.message || response.statusText}`)
-      }
+      // Use SDK method - type assertion needed as TypeScript types may not be up to date
+      await whopSdk_server.notifications.sendPushNotification(notificationPayload)
 
       console.log(`✅ Notification sent to user ${userId}:`, { title, content })
     } catch (error) {
@@ -67,34 +58,24 @@ export class NotificationService {
     isMention: boolean = false
   ): Promise<void> {
     try {
-      // Use Whop REST API to send push notification
+      // Use Whop SDK to send push notification
       // Reference: https://docs.whop.com/apps/features/send-push-notification
-      const apiKey = process.env.WHOP_API_KEY
-      if (!apiKey) {
-        throw new Error('WHOP_API_KEY is not configured')
+      const notificationPayload: any = {
+        title,
+        content,
+        companyTeamId: companyId, // This sends to all admins in the company
+      }
+      
+      if (restPath) {
+        notificationPayload.restPath = restPath
+      }
+      
+      if (isMention) {
+        notificationPayload.isMention = isMention
       }
 
-      // Whop API endpoint for push notifications
-      // Reference: https://docs.whop.com/apps/features/send-push-notification
-      const response = await fetch('https://api.whop.com/api/v2/apps/notifications/push', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title,
-          content,
-          companyTeamId: companyId, // This sends to all admins in the company
-          restPath,
-          isMention,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
-        throw new Error(`Failed to send notification: ${errorData.message || response.statusText}`)
-      }
+      // Use SDK method - type assertion needed as TypeScript types may not be up to date
+      await (whopsdk as any).notifications.sendPushNotification(notificationPayload)
 
       console.log(`✅ Notification sent to admins in company ${companyId}:`, { title, content })
     } catch (error) {
@@ -151,7 +132,7 @@ export class NotificationService {
       return false
     }
 
-    return !!data[field]
+    return !!(data as any)[field]
   }
 }
 
