@@ -10,7 +10,6 @@ import { useToast } from '@/lib/context/ToastContext'
 
 const bookingSchema = z.object({
   member_id: z.string().uuid('Please select a member'),
-  admin_id: z.string().uuid('Admin ID is required'),
   slot_id: z.string().uuid('Please select a time slot').optional(),
   title: z.string().min(1, 'Title is required').max(200),
   description: z.string().max(1000).optional(),
@@ -25,7 +24,6 @@ interface CreateBookingDrawerProps {
   onClose: () => void
   onSuccess: () => void
   companyId: string
-  adminId?: string
 }
 
 export default function CreateBookingDrawer({
@@ -33,7 +31,6 @@ export default function CreateBookingDrawer({
   onClose,
   onSuccess,
   companyId,
-  adminId,
 }: CreateBookingDrawerProps) {
   const { showError } = useToast()
   const [loading, setLoading] = useState(false)
@@ -48,9 +45,6 @@ export default function CreateBookingDrawer({
     reset,
   } = useForm<BookingFormData>({
     resolver: zodResolver(bookingSchema),
-    defaultValues: {
-      admin_id: adminId,
-    },
   })
 
   // Load members and available slots when modal opens
@@ -70,12 +64,12 @@ export default function CreateBookingDrawer({
 
     setMembers(membersData || [])
 
-    // Load available slots
+    // Load available slots (slots still have admin_id, but we'll load all available slots)
+    // In the future, slots should also be company-scoped
     const { data: slotsData } = await supabase
       .from('availability_slots')
       .select('id, start_time, end_time')
       .eq('is_available', true)
-      .eq('admin_id', adminId)
       .order('start_time')
 
     setSlots(slotsData || [])
@@ -84,19 +78,29 @@ export default function CreateBookingDrawer({
   async function onSubmit(data: BookingFormData) {
     setLoading(true)
     try {
-      const { error } = await supabase.from('bookings').insert({
-        ...data,
-        status: 'upcoming',
+      const response = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...data,
+          companyId,
+          status: 'upcoming',
+        }),
       })
 
-      if (error) throw error
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create booking')
+      }
 
       reset()
       onSuccess()
       onClose()
     } catch (error) {
       console.error('Error creating booking:', error)
-      showError('Booking Failed', 'Failed to create booking. Please try again.')
+      showError('Booking Failed', error instanceof Error ? error.message : 'Failed to create booking. Please try again.')
     } finally {
       setLoading(false)
     }

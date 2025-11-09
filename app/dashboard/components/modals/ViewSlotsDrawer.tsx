@@ -7,6 +7,7 @@ import { AvailabilityPattern } from '@/lib/types/database'
 import { format, addDays, startOfWeek, isSameDay, parse, setHours, setMinutes } from 'date-fns'
 import { Drawer, DrawerHeader, DrawerContent, DrawerFooter } from '../shared/Drawer'
 import { useToast } from '@/lib/context/ToastContext'
+import { useWhopUser } from '@/lib/context/WhopUserContext'
 
 interface Slot {
   id: string // Format: pattern_id:YYYY-MM-DD:HH:mm
@@ -35,6 +36,7 @@ export default function ViewSlotsDrawer({
   currentUserEmail = null
 }: ViewSlotsDrawerProps) {
   const { showSuccess, showError, showWarning } = useToast()
+  const { user } = useWhopUser()
   const [slots, setSlots] = useState<Slot[]>([])
   const [loading, setLoading] = useState(false)
   const [booking, setBooking] = useState(false)
@@ -484,7 +486,7 @@ export default function ViewSlotsDrawer({
                 <div className="flex items-center gap-2 text-sm">
                   <User className="w-4 h-4 text-emerald-400" />
                   <span className="text-zinc-300">Booking as:</span>
-                  <span className="text-white font-medium">{currentUserEmail || 'Logged in user'}</span>
+                  <span className="text-white font-medium">{user?.name || currentUserEmail || 'Logged in user'}</span>
                 </div>
               )}
             </div>

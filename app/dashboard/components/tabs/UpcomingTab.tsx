@@ -1,11 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Calendar, User as UserIcon, ExternalLink, X, Copy, Check, ChevronDown, ChevronUp, Video, Link as LinkIcon, MapPin, Clock } from 'lucide-react'
+import { Plus, Calendar, User as UserIcon, ExternalLink, Copy, Check, ChevronDown, ChevronUp, Video, Link as LinkIcon, MapPin, Clock, Trash2 } from 'lucide-react'
 import { BookingWithRelations } from '@/lib/types/database'
 import { format } from 'date-fns'
 import CreateBookingDrawer from '../modals/CreateBookingDrawer'
 import { BookingSkeleton } from '../shared/ListItemSkeleton'
+import { useWhopUser } from '@/lib/context/WhopUserContext'
+import { useToast } from '@/lib/context/ToastContext'
+import { useConfirm } from '@/lib/context/ConfirmDialogContext'
 
 interface UpcomingTabProps {
   roleOverride?: 'admin' | 'member'
@@ -13,6 +16,9 @@ interface UpcomingTabProps {
 }
 
 export default function UpcomingTab({ roleOverride, companyId }: UpcomingTabProps) {
+  const { user } = useWhopUser()
+  const { showSuccess, showError } = useToast()
+  const confirm = useConfirm()
   const [bookings, setBookings] = useState<BookingWithRelations[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -66,23 +72,35 @@ export default function UpcomingTab({ roleOverride, companyId }: UpcomingTabProp
     }
   }
 
-  async function cancelBooking(bookingId: string) {
+  async function deleteBooking(bookingId: string) {
+    const confirmed = await confirm.confirm({
+      title: 'Delete Booking',
+      message: 'Are you sure you want to delete this booking? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    })
+
+    if (!confirmed) {
+      return
+    }
+
     try {
-      const response = await fetch(`/api/bookings/${bookingId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyId,
-          status: 'cancelled'
-        }),
+      const response = await fetch(`/api/bookings/${bookingId}?companyId=${companyId}`, {
+        method: 'DELETE',
       })
 
       if (response.ok) {
+        showSuccess('Booking deleted', 'The booking has been successfully deleted.')
         // Reload bookings
         loadBookings()
+      } else {
+        const error = await response.json()
+        showError('Failed to delete booking', error.error || 'An error occurred while deleting the booking.')
       }
     } catch (error) {
-      console.error('Error cancelling booking:', error)
+      console.error('Error deleting booking:', error)
+      showError('Failed to delete booking', 'Please try again.')
     }
   }
 
@@ -142,6 +160,13 @@ export default function UpcomingTab({ roleOverride, companyId }: UpcomingTabProp
   }
 
   const isAdmin = roleOverride === 'admin'
+  
+  // Check if a booking belongs to the current user (for members)
+  const isBookingOwner = (booking: BookingWithRelations) => {
+    if (isAdmin) return true // Admins can delete any booking
+    if (!user) return false
+    return booking.member_id === user.userId
+  }
 
   return (
     <div className="space-y-6">
@@ -248,15 +273,6 @@ export default function UpcomingTab({ roleOverride, companyId }: UpcomingTabProp
                               </span>
                             </>
                           )}
-                          {!isAdmin && booking.admin && (
-                            <>
-                              <span className="text-zinc-600">•</span>
-                              <span className="flex items-center gap-1.5 text-zinc-300">
-                                <UserIcon className="w-4 h-4 text-zinc-400" />
-                                Host: {booking.admin.name}
-                              </span>
-                            </>
-                          )}
                         </div>
 
                         {/* Description - Expandable */}
@@ -316,13 +332,15 @@ export default function UpcomingTab({ roleOverride, companyId }: UpcomingTabProp
                           </button>
                         </>
                       )}
-                      <button
-                        onClick={() => cancelBooking(booking.id)}
-                        className="p-2 hover:bg-red-500/10 rounded-lg transition-colors group/btn"
-                        title="Cancel booking"
-                      >
-                        <X className="w-4 h-4 text-zinc-400 group-hover/btn:text-red-400 transition-colors" />
-                      </button>
+                      {isBookingOwner(booking) && (
+                        <button
+                          onClick={() => deleteBooking(booking.id)}
+                          className="p-2 hover:bg-red-500/10 rounded-lg transition-colors group/delete"
+                          title="Delete booking"
+                        >
+                          <Trash2 className="w-4 h-4 text-zinc-400 group-hover/delete:text-red-400 transition-colors" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

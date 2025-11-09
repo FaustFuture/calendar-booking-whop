@@ -21,7 +21,6 @@ export async function GET(
       .select(`
         *,
         member:member_id(id, name, email),
-        admin:admin_id(id, name, email),
         slot:slot_id(start_time, end_time)
       `)
       .eq('id', id)
@@ -87,11 +86,45 @@ export async function DELETE(
   try {
     const { id } = await params
     const supabase = await createClient()
+    const { searchParams } = new URL(request.url)
+    const companyId = searchParams.get('companyId')
 
-    // Get authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'companyId is required' },
+        { status: 400 }
+      )
+    }
+
+    // Verify Whop authentication and company access
+    const { requireWhopAuth } = await import('@/lib/auth/whop')
+    const whopUser = await requireWhopAuth(companyId, true)
+
+    // Get the booking to check ownership
+    const { data: booking, error: fetchError } = await supabase
+      .from('bookings')
+      .select('member_id, company_id')
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !booking) {
+      return NextResponse.json({ error: 'Booking not found' }, { status: 404 })
+    }
+
+    // Check permissions: admins can delete any booking, members can only delete their own
+    if (whopUser.role === 'member' && booking.member_id !== whopUser.userId) {
+      return NextResponse.json(
+        { error: 'You can only delete your own bookings' },
+        { status: 403 }
+      )
+    }
+
+    // Verify company_id matches
+    if (booking.company_id !== companyId) {
+      return NextResponse.json(
+        { error: 'Booking does not belong to this company' },
+        { status: 403 }
+      )
     }
 
     const { error } = await supabase
@@ -105,8 +138,9 @@ export async function DELETE(
 
     return NextResponse.json({ message: 'Booking deleted' })
   } catch (error) {
+    console.error('Error deleting booking:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
     )
   }

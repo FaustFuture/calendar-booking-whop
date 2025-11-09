@@ -35,7 +35,7 @@ export async function GET(request: Request) {
           id,
           title,
           member_id,
-          admin_id
+          company_id
         )
       `)
       .order('uploaded_at', { ascending: false })

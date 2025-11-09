@@ -47,7 +47,7 @@ export interface Booking {
   slot_id?: string
   pattern_id?: string
   member_id?: string
-  admin_id: string
+  company_id: string
   title: string
   description?: string
   status: BookingStatus
@@ -124,7 +124,6 @@ export interface AvailabilityPattern {
 // Extended types with relationships
 export interface BookingWithRelations extends Booking {
   member?: User
-  admin?: User
   slot?: AvailabilitySlot
   pattern?: AvailabilityPattern
   recordings?: Recording[]

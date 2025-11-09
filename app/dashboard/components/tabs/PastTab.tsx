@@ -1,17 +1,23 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Calendar, User as UserIcon, CheckCircle, ExternalLink, Copy, Check } from 'lucide-react'
+import { Calendar, User as UserIcon, CheckCircle, ExternalLink, Copy, Check, Trash2 } from 'lucide-react'
 import { BookingWithRelations } from '@/lib/types/database'
 import { format } from 'date-fns'
 import { BookingSkeleton } from '../shared/ListItemSkeleton'
+import { useWhopUser } from '@/lib/context/WhopUserContext'
+import { useToast } from '@/lib/context/ToastContext'
+import { useConfirm } from '@/lib/context/ConfirmDialogContext'
 
 interface PastTabProps {
   roleOverride?: 'admin' | 'member'
   companyId: string
 }
 
-export default function PastTab({ roleOverride, companyId }: PastTabProps) {
+function PastTab({ roleOverride, companyId }: PastTabProps) {
+  const { user } = useWhopUser()
+  const { showSuccess, showError } = useToast()
+  const confirm = useConfirm()
   const [bookings, setBookings] = useState<BookingWithRelations[]>([])
   const [loading, setLoading] = useState(true)
   const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -48,6 +54,38 @@ export default function PastTab({ roleOverride, companyId }: PastTabProps) {
     }
   }
 
+  async function deleteBooking(bookingId: string) {
+    const confirmed = await confirm.confirm({
+      title: 'Delete Booking',
+      message: 'Are you sure you want to delete this booking? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    })
+
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/bookings/${bookingId}?companyId=${companyId}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        showSuccess('Booking deleted', 'The booking has been successfully deleted.')
+        // Reload bookings
+        loadBookings()
+      } else {
+        const error = await response.json()
+        showError('Failed to delete booking', error.error || 'An error occurred while deleting the booking.')
+      }
+    } catch (error) {
+      console.error('Error deleting booking:', error)
+      showError('Failed to delete booking', 'Please try again.')
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -67,6 +105,13 @@ export default function PastTab({ roleOverride, companyId }: PastTabProps) {
   }
 
   const isAdmin = roleOverride === 'admin'
+  
+  // Check if a booking belongs to the current user (for members)
+  const isBookingOwner = (booking: BookingWithRelations) => {
+    if (isAdmin) return true // Admins can delete any booking
+    if (!user) return false
+    return booking.member_id === user.userId
+  }
 
   return (
     <div className="space-y-6">
@@ -132,12 +177,6 @@ export default function PastTab({ roleOverride, companyId }: PastTabProps) {
                             <span className="truncate">{booking.member.name}</span>
                           </>
                         )}
-                        {!isAdmin && booking.admin && (
-                          <>
-                            <span className="text-zinc-600">•</span>
-                            <span className="truncate">with {booking.admin.name}</span>
-                          </>
-                        )}
                       </div>
                     )}
                   </div>
@@ -172,6 +211,15 @@ export default function PastTab({ roleOverride, companyId }: PastTabProps) {
                   {booking.status === 'completed' && (
                     <CheckCircle className="w-5 h-5 text-blue-400 flex-shrink-0" />
                   )}
+                  {isBookingOwner(booking) && (
+                    <button
+                      onClick={() => deleteBooking(booking.id)}
+                      className="p-2 hover:bg-red-500/10 rounded-lg transition-colors group/delete"
+                      title="Delete booking"
+                    >
+                      <Trash2 className="w-4 h-4 text-zinc-400 group-hover/delete:text-red-400 transition-colors" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -181,3 +229,5 @@ export default function PastTab({ roleOverride, companyId }: PastTabProps) {
     </div>
   )
 }
+
+export default PastTab

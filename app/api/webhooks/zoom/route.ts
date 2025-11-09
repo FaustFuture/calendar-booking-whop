@@ -138,7 +138,7 @@ async function handleRecordingCompleted(event: ZoomWebhookEvent) {
   // The meeting_url might contain the meeting ID
   const { data: upcomingBookings } = await supabase
     .from('bookings')
-    .select('id, admin_id, meeting_url')
+    .select('id, company_id, meeting_url')
     .eq('status', 'upcoming')
     .or(`meeting_url.ilike.%${meetingId}%`)
 
@@ -148,7 +148,7 @@ async function handleRecordingCompleted(event: ZoomWebhookEvent) {
     // Try to find completed bookings (meeting might have just ended)
     const { data: completedBookings } = await supabase
       .from('bookings')
-      .select('id, admin_id, meeting_url')
+      .select('id, company_id, meeting_url')
       .eq('status', 'completed')
       .or(`meeting_url.ilike.%${meetingId}%`)
       .order('updated_at', { ascending: false })

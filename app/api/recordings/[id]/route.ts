@@ -34,7 +34,7 @@ export async function GET(
           id,
           title,
           member_id,
-          admin_id
+          company_id
         )
       `)
       .eq('id', id)

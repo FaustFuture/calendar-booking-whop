@@ -7,6 +7,7 @@ import UpcomingTab from './tabs/UpcomingTab'
 import PastTab from './tabs/PastTab'
 import RecordingsTab from './tabs/RecordingsTab'
 import CreateSlotDrawer from './modals/CreateSlotDrawer'
+import RoleSwitcher from './RoleSwitcher'
 import { AvailabilityPattern } from '@/lib/types/database'
 import { updatePastBookingsStatus } from '@/lib/utils/bookings'
 import { useWhopUser } from '@/lib/context/WhopUserContext'
@@ -37,6 +38,7 @@ export default function DashboardTabs({ companyId }: DashboardTabsProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const [editingPattern, setEditingPattern] = useState<AvailabilityPattern | null>(null)
+  const [viewMode, setViewMode] = useState<UserRole>('admin') // Default to admin view for admins
 
   // Handle tab change and update past bookings when viewing booking-related tabs
   function handleTabChange(tab: TabType) {
@@ -80,8 +82,21 @@ export default function DashboardTabs({ companyId }: DashboardTabsProps) {
     )
   }
 
+  // Determine the effective role to use (for admins, allow switching views)
+  const effectiveRole = isAdmin ? viewMode : user.role
+
   return (
     <div className="w-full space-y-6 p-6">
+      {/* Role Switcher - Only show for admins */}
+      {isAdmin && (
+        <div className="flex justify-end">
+          <RoleSwitcher
+            currentRole={viewMode}
+            onRoleChange={setViewMode}
+          />
+        </div>
+      )}
+
       {/* Availability Header - Only show on availability tab */}
       {activeTab === 'availability' && (
         <div className="rounded-xl bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/20 p-5">
@@ -94,12 +109,12 @@ export default function DashboardTabs({ companyId }: DashboardTabsProps) {
                 <h2 className="text-xl font-bold text-white">Availability</h2>
               </div>
               <p className="text-zinc-300 text-sm">
-                {isAdmin
+                {effectiveRole === 'admin'
                   ? 'Manage your available time slots for bookings'
                   : 'Browse and book available time slots'}
               </p>
             </div>
-            {isAdmin && (
+            {effectiveRole === 'admin' && (
               <button
                 onClick={() => setIsModalOpen(true)}
                 className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-semibold flex items-center gap-2 transition-colors text-sm"
@@ -147,7 +162,7 @@ export default function DashboardTabs({ companyId }: DashboardTabsProps) {
         {activeTab === 'availability' && (
           <AvailabilityTab
             key={`availability-${refreshKey}`}
-            roleOverride={user.role}
+            roleOverride={effectiveRole}
             companyId={companyId}
             hideHeader
             onEditPattern={handleEditPattern}
@@ -158,21 +173,21 @@ export default function DashboardTabs({ companyId }: DashboardTabsProps) {
         {activeTab === 'upcoming' && (
           <UpcomingTab
             key="upcoming"
-            roleOverride={user.role}
+            roleOverride={effectiveRole}
             companyId={companyId}
           />
         )}
         {activeTab === 'past' && (
           <PastTab
             key="past"
-            roleOverride={user.role}
+            roleOverride={effectiveRole}
             companyId={companyId}
           />
         )}
         {activeTab === 'recordings' && (
           <RecordingsTab
             key="recordings"
-            roleOverride={user.role}
+            roleOverride={effectiveRole}
             companyId={companyId}
           />
         )}

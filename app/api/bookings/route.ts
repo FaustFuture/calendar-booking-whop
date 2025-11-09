@@ -39,10 +39,10 @@ export async function GET(request: Request) {
       .select(`
         *,
         member:member_id(id, name, email),
-        admin:admin_id(id, name, email),
         slot:slot_id(start_time, end_time, title, description, meeting_type),
         pattern:pattern_id(id, title, description, meeting_type, duration_minutes, price)
       `)
+      .eq('company_id', companyId) // Filter by company_id first
       .order('created_at', { ascending: false })
 
     // Filter by status if provided
@@ -50,7 +50,7 @@ export async function GET(request: Request) {
       query = query.eq('status', status)
     }
 
-    // Members only see their own bookings
+    // Members only see their own bookings within the company
     if (whopUser.role === 'member') {
       query = query.eq('member_id', whopUser.userId)
     }
@@ -74,7 +74,7 @@ export async function GET(request: Request) {
       bookings: data?.map(b => ({
         id: b.id,
         member_id: b.member_id,
-        admin_id: b.admin_id,
+        company_id: b.company_id,
         title: b.title,
         booking_start_time: b.booking_start_time,
         booking_end_time: b.booking_end_time,
@@ -139,78 +139,15 @@ export async function POST(request: Request) {
     let meetingData = null
     let startTime = null
     let endTime = null
-    let adminId = body.admin_id
-
-    // Determine admin_id if not provided
-    if (!adminId) {
-      // First, try to use the authenticated user if they're an admin
-      if (whopUser && whopUser.role === 'admin') {
-        adminId = whopUser.userId
-        console.log('📋 Using authenticated admin user:', adminId)
-      } else if (body.pattern_id) {
-        // For pattern-based bookings, find an admin in the company
-        // Since patterns are company-scoped, we need to find an admin user
-        const { data: adminUser } = await supabase
-          .from('users')
-          .select('id')
-          .eq('role', 'admin')
-          .limit(1)
-          .single()
-
-        if (adminUser) {
-          adminId = adminUser.id
-          console.log('📋 Determined admin_id from company admins:', adminId)
-        } else {
-          return NextResponse.json(
-            { error: 'No admin found for this company. Please contact support.' },
-            { status: 400 }
-          )
-        }
-      } else if (body.slot_id) {
-        // For slot-based bookings, get admin_id from the slot
-        const { data: slotData } = await supabase
-          .from('availability_slots')
-          .select('admin_id')
-          .eq('id', body.slot_id)
-          .single()
-
-        if (slotData?.admin_id) {
-          adminId = slotData.admin_id
-          console.log('📋 Determined admin_id from slot:', adminId)
-        }
-      }
-    }
-
-    // Ensure admin_id is set (required for bookings)
-    if (!adminId) {
-      return NextResponse.json(
-        { error: 'admin_id is required for booking creation' },
-        { status: 400 }
-      )
-    }
-
-    // Ensure admin user is also synced to Supabase (for foreign key constraint)
-    try {
-      // We need to verify the admin exists in Supabase users table
-      const { data: adminExists } = await supabase
-        .from('users')
-        .select('id')
-        .eq('id', adminId)
-        .single()
-
-      if (!adminExists) {
-        console.log('⚠️ Admin user not found in Supabase, attempting to sync...')
-        // Note: In a real scenario, we'd need the admin's Whop data to sync them
-        // For now, we'll let the foreign key constraint error surface
-      }
-    } catch (error) {
-      console.log('⚠️ Could not verify admin user existence:', error)
-    }
+    
+    // Find an admin in the company for meeting generation (if needed)
+    // We'll determine this when we need to generate a meeting link
+    let adminIdForMeeting: string | null = null
 
     console.log('📋 Booking request body:', {
       slot_id: body.slot_id,
       pattern_id: body.pattern_id,
-      admin_id: adminId,
+      company_id: companyId,
       member_id: body.member_id,
       guest_email: body.guest_email,
       booking_start_time: body.booking_start_time,
@@ -258,6 +195,34 @@ export async function POST(request: Request) {
     ) {
       console.log('🚀 Starting meeting link generation...')
       try {
+        // Find an admin in the company for OAuth connection
+        if (!adminIdForMeeting) {
+          // First, try to use the authenticated user if they're an admin
+          if (whopUser && whopUser.role === 'admin') {
+            adminIdForMeeting = whopUser.userId
+            console.log('📋 Using authenticated admin user for meeting:', adminIdForMeeting)
+          } else {
+            // Find any admin in the company
+            const { data: adminUser } = await supabase
+              .from('users')
+              .select('id')
+              .eq('role', 'admin')
+              .limit(1)
+              .single()
+
+            if (adminUser) {
+              adminIdForMeeting = adminUser.id
+              console.log('📋 Found admin in company for meeting:', adminIdForMeeting)
+            } else {
+              console.warn('⚠️ No admin found in company for meeting generation')
+            }
+          }
+        }
+
+        if (!adminIdForMeeting) {
+          throw new Error('No admin found in company for meeting generation')
+        }
+
         // Get attendee emails
         const attendeeEmails: string[] = []
 
@@ -278,7 +243,7 @@ export async function POST(request: Request) {
         const { data: adminData } = await supabase
           .from('users')
           .select('email')
-          .eq('id', body.admin_id)
+          .eq('id', adminIdForMeeting)
           .single()
         if (adminData?.email) attendeeEmails.push(adminData.email)
 
@@ -290,7 +255,7 @@ export async function POST(request: Request) {
         })
 
         const meetingResult = await meetingService.generateMeetingLink(
-          adminId, // Use admin's OAuth connection
+          adminIdForMeeting, // Use admin's OAuth connection
           provider,
           {
             title: body.title || meetingData.title || 'Meeting',
@@ -324,7 +289,7 @@ export async function POST(request: Request) {
 
     const insertData = {
       ...bookingData,
-      admin_id: adminId, // Use determined admin_id
+      company_id: companyId, // Use company_id instead of admin_id
       status: bookingData.status || 'upcoming',
       meeting_url: meetingUrl,
       // Set title and description from pattern/slot if not provided
@@ -334,7 +299,7 @@ export async function POST(request: Request) {
 
     console.log('📝 Actual data being inserted into database:', {
       member_id: insertData.member_id,
-      admin_id: insertData.admin_id,
+      company_id: insertData.company_id,
       pattern_id: insertData.pattern_id,
       slot_id: insertData.slot_id,
       guest_name: insertData.guest_name,
@@ -361,7 +326,7 @@ export async function POST(request: Request) {
     console.log('✅ Booking created in database:', {
       id: data.id,
       member_id: data.member_id,
-      admin_id: data.admin_id,
+      company_id: data.company_id,
       status: data.status,
       title: data.title,
       description: data.description,
