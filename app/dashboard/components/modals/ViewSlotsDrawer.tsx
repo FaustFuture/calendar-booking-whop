@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Calendar, Clock, DollarSign, User, Video, Link as LinkIcon, MapPin } from 'lucide-react'
+import { Calendar, Clock, User, Video, Link as LinkIcon, MapPin } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { AvailabilityPattern } from '@/lib/types/database'
 import { format, addDays, startOfWeek, isSameDay, parse, setHours, setMinutes } from 'date-fns'
 import { Drawer, DrawerHeader, DrawerContent, DrawerFooter } from '../shared/Drawer'
+import { useToast } from '@/lib/context/ToastContext'
 
 interface Slot {
   id: string // Format: pattern_id:YYYY-MM-DD:HH:mm
@@ -33,6 +34,7 @@ export default function ViewSlotsDrawer({
   currentUserId = null,
   currentUserEmail = null
 }: ViewSlotsDrawerProps) {
+  const { showSuccess, showError, showWarning } = useToast()
   const [slots, setSlots] = useState<Slot[]>([])
   const [loading, setLoading] = useState(false)
   const [booking, setBooking] = useState(false)
@@ -219,13 +221,13 @@ export default function ViewSlotsDrawer({
     // Validate guest information if booking as guest
     if (isGuest) {
       if (!guestName.trim() || !guestEmail.trim()) {
-        alert('Please enter your name and email to book')
+        showWarning('Missing Information', 'Please enter your name and email to book')
         return
       }
       // Basic email validation
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
       if (!emailRegex.test(guestEmail)) {
-        alert('Please enter a valid email address')
+        showWarning('Invalid Email', 'Please enter a valid email address')
         return
       }
     }
@@ -234,9 +236,9 @@ export default function ViewSlotsDrawer({
       setBooking(true)
 
       // Prepare booking data
+      // Note: admin_id will be determined by the API based on company_id
       const bookingData: any = {
         pattern_id: pattern.id,
-        admin_id: pattern.admin_id,
         companyId: companyId,
         title: pattern.title,
         description: pattern.description,
@@ -284,7 +286,7 @@ export default function ViewSlotsDrawer({
       const result = await response.json()
       console.log('✅ Booking created:', result.data)
 
-      alert('Booking successful! You will receive a confirmation email.')
+      showSuccess('Booking Successful!', 'You will receive a confirmation email.')
       onBookingSuccess?.()
       loadSlots() // Reload slots to reflect the new booking
 
@@ -293,7 +295,7 @@ export default function ViewSlotsDrawer({
       setGuestEmail('')
     } catch (error) {
       console.error('Error booking slot:', error)
-      alert('Failed to book slot. Please try again.')
+      showError('Booking Failed', 'Please try again.')
     } finally {
       setBooking(false)
       setSelectedSlot(null)
@@ -360,12 +362,6 @@ export default function ViewSlotsDrawer({
             <Clock className="w-4 h-4 text-zinc-400" />
             {pattern.duration_minutes} min
           </span>
-          {pattern.price && pattern.price > 0 && (
-            <span className="flex items-center gap-1.5 text-zinc-300">
-              <DollarSign className="w-4 h-4 text-zinc-400" />
-              ${pattern.price}
-            </span>
-          )}
           <span className={`flex items-center gap-1.5 ${meetingDisplay.color}`}>
             <MeetingIcon className="w-4 h-4" />
             {meetingDisplay.label}

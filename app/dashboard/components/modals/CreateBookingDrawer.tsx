@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/client'
 import { Drawer, DrawerHeader, DrawerContent, DrawerFooter } from '../shared/Drawer'
+import { useToast } from '@/lib/context/ToastContext'
 
 const bookingSchema = z.object({
   member_id: z.string().uuid('Please select a member'),
@@ -34,6 +35,7 @@ export default function CreateBookingDrawer({
   companyId,
   adminId,
 }: CreateBookingDrawerProps) {
+  const { showError } = useToast()
   const [loading, setLoading] = useState(false)
   const [members, setMembers] = useState<Array<{ id: string; name: string; email: string }>>([])
   const [slots, setSlots] = useState<Array<{ id: string; start_time: string; end_time: string }>>([])
@@ -94,7 +96,7 @@ export default function CreateBookingDrawer({
       onClose()
     } catch (error) {
       console.error('Error creating booking:', error)
-      alert('Failed to create booking. Please try again.')
+      showError('Booking Failed', 'Failed to create booking. Please try again.')
     } finally {
       setLoading(false)
     }

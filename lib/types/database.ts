@@ -15,6 +15,7 @@ export type RecordingType = 'cloud' | 'local'
 export interface MeetingConfig {
   requiresGeneration?: boolean
   enableRecording?: boolean
+  manualValue?: string // For manual_link and location types
   customSettings?: Record<string, unknown>
 }
 
@@ -105,7 +106,7 @@ export interface OAuthConnection {
 
 export interface AvailabilityPattern {
   id: string
-  admin_id: string
+  company_id: string
   title: string
   description?: string
   duration_minutes: number

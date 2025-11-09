@@ -53,11 +53,10 @@ export async function POST(request: Request) {
     const { data: pattern, error } = await supabase
       .from('availability_patterns')
       .insert({
-        admin_id: whopUser.userId,
+        company_id: companyId,
         title: commonData.title,
         description: commonData.description || null,
         duration_minutes: commonData.duration_minutes,
-        price: commonData.price || 0,
         meeting_type: commonData.meeting_type,
         meeting_config: commonData.meeting_config,
         start_date: scheduleData.dateRange.start,
@@ -94,7 +93,6 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const adminId = searchParams.get('adminId')
     const companyId = searchParams.get('companyId')
 
     // Require companyId for Whop multi-tenancy
@@ -116,14 +114,10 @@ export async function GET(request: Request) {
     let query = supabase
       .from('availability_patterns')
       .select('*')
+      .eq('company_id', companyId)
 
-    // Admins see their own patterns, members see all active patterns
-    if (whopUser.role === 'admin') {
-      // Use provided adminId or current user's ID
-      const effectiveAdminId = adminId || whopUser.userId
-      query = query.eq('admin_id', effectiveAdminId)
-    } else {
-      // Members can only see active patterns
+    // Members can only see active patterns, admins see all patterns for their company
+    if (whopUser.role === 'member') {
       query = query.eq('is_active', true)
     }
 

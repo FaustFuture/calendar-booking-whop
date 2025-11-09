@@ -1,6 +1,7 @@
 'use client'
 
 import { Clock, Plus, X } from 'lucide-react'
+import { DatePicker } from '@/components/ui/date-picker'
 import styles from './SimplifiedSchedulePicker.module.css'
 
 const DAYS = [
@@ -141,17 +142,25 @@ export default function SimplifiedSchedulePicker({
 
   const selectWeekdays = () => {
     const weekdayKeys = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
-    const newDays = { ...value.days }
+    const newDays: Record<string, { enabled: boolean; timeRanges: Array<{ id: string; startTime: string; endTime: string }> }> = {}
+    
+    // Clear all days first
+    DAYS.forEach(({ key }) => {
+      newDays[key] = {
+        enabled: false,
+        timeRanges: [],
+      }
+    })
+    
+    // Set weekdays with default time range
     weekdayKeys.forEach(key => {
       newDays[key] = {
         enabled: true,
-        timeRanges: newDays[key]?.timeRanges.length > 0
-          ? newDays[key].timeRanges
-          : [{
-              id: generateId(),
-              startTime: '09:00',
-              endTime: '17:00',
-            }],
+        timeRanges: [{
+          id: generateId(),
+          startTime: '09:00',
+          endTime: '17:00',
+        }],
       }
     })
     onChange({ ...value, days: newDays })
@@ -159,44 +168,53 @@ export default function SimplifiedSchedulePicker({
 
   const selectWeekends = () => {
     const weekendKeys = ['Sat', 'Sun']
-    const newDays = { ...value.days }
+    const newDays: Record<string, { enabled: boolean; timeRanges: Array<{ id: string; startTime: string; endTime: string }> }> = {}
+    
+    // Clear all days first
+    DAYS.forEach(({ key }) => {
+      newDays[key] = {
+        enabled: false,
+        timeRanges: [],
+      }
+    })
+    
+    // Set weekends with default time range
     weekendKeys.forEach(key => {
       newDays[key] = {
         enabled: true,
-        timeRanges: newDays[key]?.timeRanges.length > 0
-          ? newDays[key].timeRanges
-          : [{
-              id: generateId(),
-              startTime: '09:00',
-              endTime: '17:00',
-            }],
+        timeRanges: [{
+          id: generateId(),
+          startTime: '09:00',
+          endTime: '17:00',
+        }],
       }
     })
     onChange({ ...value, days: newDays })
   }
 
   const selectAllDays = () => {
-    const newDays = { ...value.days }
+    const newDays: Record<string, { enabled: boolean; timeRanges: Array<{ id: string; startTime: string; endTime: string }> }> = {}
+    
+    // Set all days with default time range
     DAYS.forEach(({ key }) => {
       newDays[key] = {
         enabled: true,
-        timeRanges: newDays[key]?.timeRanges.length > 0
-          ? newDays[key].timeRanges
-          : [{
-              id: generateId(),
-              startTime: '09:00',
-              endTime: '17:00',
-            }],
+        timeRanges: [{
+          id: generateId(),
+          startTime: '09:00',
+          endTime: '17:00',
+        }],
       }
     })
     onChange({ ...value, days: newDays })
   }
 
   const clearAll = () => {
-    const newDays = { ...value.days }
+    const newDays: Record<string, { enabled: boolean; timeRanges: Array<{ id: string; startTime: string; endTime: string }> }> = {}
     DAYS.forEach(({ key }) => {
-      if (newDays[key]) {
-        newDays[key].enabled = false
+      newDays[key] = {
+        enabled: false,
+        timeRanges: [],
       }
     })
     onChange({ ...value, days: newDays })
@@ -214,17 +232,12 @@ export default function SimplifiedSchedulePicker({
     return `${ranges.length} time slots`
   }
 
-  const formatDateForInput = (date: Date | null) => {
-    if (!date) return ''
-    return date.toISOString().split('T')[0]
-  }
-
-  const updateDateRange = (field: 'start' | 'end', dateStr: string) => {
+  const updateDateRange = (field: 'start' | 'end', date: Date | undefined) => {
     const newDateRange = { ...value.dateRange }
     if (field === 'start') {
-      newDateRange.start = dateStr ? new Date(dateStr) : null
+      newDateRange.start = date || null
     } else {
-      newDateRange.end = dateStr ? new Date(dateStr) : null
+      newDateRange.end = date || null
     }
     onChange({ ...value, dateRange: newDateRange })
   }
@@ -254,12 +267,12 @@ export default function SimplifiedSchedulePicker({
               <label className="block text-xs text-zinc-400 mb-2">
                 Start Date
               </label>
-              <input
-                type="date"
-                value={formatDateForInput(value.dateRange.start)}
-                onChange={(e) => updateDateRange('start', e.target.value)}
-                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                required
+              <DatePicker
+                date={value.dateRange.start}
+                onDateChange={(date) => updateDateRange('start', date)}
+                placeholder="Select start date"
+                minDate={new Date()}
+                className="bg-zinc-800 border-zinc-700 text-white hover:bg-zinc-700"
               />
             </div>
 
@@ -267,13 +280,13 @@ export default function SimplifiedSchedulePicker({
               <label className="block text-xs text-zinc-400 mb-2">
                 End Date
               </label>
-              <input
-                type="date"
-                value={formatDateForInput(value.dateRange.end)}
-                onChange={(e) => updateDateRange('end', e.target.value)}
+              <DatePicker
+                date={value.dateRange.end}
+                onDateChange={(date) => updateDateRange('end', date)}
+                placeholder="Select end date"
                 disabled={value.dateRange.indefinite}
-                min={formatDateForInput(value.dateRange.start)}
-                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                minDate={value.dateRange.start || new Date()}
+                className="bg-zinc-800 border-zinc-700 text-white hover:bg-zinc-700"
               />
             </div>
           </div>

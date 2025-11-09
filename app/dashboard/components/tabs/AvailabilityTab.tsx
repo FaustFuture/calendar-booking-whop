@@ -1,13 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Clock, Trash2, Edit2, Calendar, DollarSign, Video, Link as LinkIcon, MapPin } from 'lucide-react'
+import { Plus, Clock, Trash2, Edit2, Calendar, Video, Link as LinkIcon, MapPin } from 'lucide-react'
 import { AvailabilityPattern } from '@/lib/types/database'
 import { format } from 'date-fns'
 import CreateSlotDrawer from '../modals/CreateSlotDrawer'
 import ViewSlotsDrawer from '../modals/ViewSlotsDrawer'
 import { AvailabilityPatternSkeleton } from '../shared/ListItemSkeleton'
 import { useWhopUser } from '@/lib/context/WhopUserContext'
+import { useConfirm } from '@/lib/context/ConfirmDialogContext'
+import { useToast } from '@/lib/context/ToastContext'
 
 interface AvailabilityTabProps {
   roleOverride?: 'admin' | 'member'
@@ -20,6 +22,8 @@ interface AvailabilityTabProps {
 
 export default function AvailabilityTab({ roleOverride, companyId, hideHeader, onEditPattern, onBookingSuccess, onCreateAvailability }: AvailabilityTabProps) {
   const { user } = useWhopUser() // Get current user from context
+  const confirm = useConfirm()
+  const { showSuccess, showError } = useToast()
   const [patterns, setPatterns] = useState<AvailabilityPattern[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -85,7 +89,15 @@ export default function AvailabilityTab({ roleOverride, companyId, hideHeader, o
   }
 
   async function deletePattern(patternId: string) {
-    if (!confirm('Are you sure you want to delete this availability pattern?')) {
+    const confirmed = await confirm.confirm({
+      title: 'Delete Availability Pattern?',
+      message: 'Are you sure you want to delete this availability pattern? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    })
+
+    if (!confirmed) {
       return
     }
 
@@ -97,10 +109,15 @@ export default function AvailabilityTab({ roleOverride, companyId, hideHeader, o
       })
 
       if (response.ok) {
+        showSuccess('Pattern Deleted', 'The availability pattern has been deleted successfully.')
         loadPatterns()
+      } else {
+        const errorData = await response.json()
+        showError('Delete Failed', errorData.error || 'Failed to delete the pattern.')
       }
     } catch (error) {
       console.error('Error deleting pattern:', error)
+      showError('Delete Failed', 'An error occurred while deleting the pattern.')
     }
   }
 
@@ -169,7 +186,7 @@ export default function AvailabilityTab({ roleOverride, companyId, hideHeader, o
     return (
       <div className="space-y-6">
         {/* Patterns skeleton */}
-        <div className="grid gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
           <AvailabilityPatternSkeleton />
           <AvailabilityPatternSkeleton />
           <AvailabilityPatternSkeleton />
@@ -246,109 +263,103 @@ export default function AvailabilityTab({ roleOverride, companyId, hideHeader, o
           </div>
         </div>
       ) : (
-        <div className="grid gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
           {patterns.map((pattern) => {
             const status = getPatternStatus(pattern)
             const isExpiredOrNotStarted = status.label === 'Expired' || status.label === 'Not Started' || status.label === 'Inactive'
+            const meetingDisplay = getMeetingTypeDisplay(pattern.meeting_type)
+            const MeetingIcon = meetingDisplay.icon
 
             return (
               <div
                 key={pattern.id}
-                className={`group relative overflow-hidden rounded-xl border transition-colors ${
+                className={`group relative overflow-hidden rounded-lg border transition-all duration-200 flex flex-col ${
                   isAdmin && isExpiredOrNotStarted
                     ? 'border-zinc-700/30 bg-zinc-800/30 opacity-60'
-                    : 'border-zinc-700/50 bg-zinc-800/50 hover:bg-zinc-800 hover:border-emerald-500/50'
+                    : 'border-zinc-700/50 bg-zinc-800/50 hover:bg-zinc-800 hover:border-emerald-500/50 hover:shadow-lg hover:shadow-emerald-500/10'
                 }`}
               >
-              <div className="relative p-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                {/* Card Header */}
+                <div className="p-3 pb-2.5">
+                  <div className="flex items-start justify-between gap-2 mb-2">
                     {/* Icon */}
-                    <div className="flex-shrink-0 p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-                      <Clock className="w-5 h-5 text-emerald-400" />
+                    <div className="flex-shrink-0 p-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded">
+                      <Clock className="w-4 h-4 text-emerald-400" />
                     </div>
-
-                    {/* Content - 2 rows */}
-                    <div className="flex-1 min-w-0">
-                      {/* Row 1: Title and Status */}
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-base font-semibold text-white truncate">
-                          {pattern.title}
-                        </h3>
-                        {isAdmin && (() => {
-                          const status = getPatternStatus(pattern)
-                          return (
-                            <span className={`flex-shrink-0 px-2 py-0.5 rounded text-xs font-medium ${status.color} ${status.bgColor}`}>
-                              {status.label}
-                            </span>
-                          )
-                        })()}
-                        {!isAdmin && (
-                          <span className={`flex-shrink-0 w-2 h-2 rounded-full ${pattern.is_active ? 'bg-emerald-400' : 'bg-zinc-500'}`}></span>
-                        )}
-                      </div>
-
-                      {/* Row 2: Quick Info */}
-                      <div className="flex items-center gap-3 text-sm text-zinc-400">
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5" />
-                          {pattern.duration_minutes}min
-                        </span>
-                        {pattern.price !== undefined && pattern.price > 0 && (
-                          <span className="flex items-center gap-1">
-                            <DollarSign className="w-3.5 h-3.5" />
-                            ${pattern.price}
-                          </span>
-                        )}
-                        {(() => {
-                          const meetingDisplay = getMeetingTypeDisplay(pattern.meeting_type)
-                          const MeetingIcon = meetingDisplay.icon
-                          return (
-                            <span className={`flex items-center gap-1 ${meetingDisplay.color}`}>
-                              <MeetingIcon className="w-3.5 h-3.5" />
-                              {meetingDisplay.label}
-                            </span>
-                          )
-                        })()}
-                        <span className="truncate">
-                          {format(new Date(pattern.start_date), 'MMM d, yyyy')}
-                          {pattern.end_date ? ` - ${format(new Date(pattern.end_date), 'MMM d')}` : ' - Ongoing'}
-                        </span>
-                      </div>
-                    </div>
+                    
+                    {/* Status Badge - Top Right */}
+                    {isAdmin && (
+                      <span className={`flex-shrink-0 px-2 py-0.5 rounded text-xs font-medium border ${status.color} ${status.bgColor} border-current/20`}>
+                        {status.label}
+                      </span>
+                    )}
+                    {!isAdmin && (
+                      <span className={`flex-shrink-0 w-2 h-2 rounded-full ${pattern.is_active ? 'bg-emerald-400' : 'bg-zinc-500'}`}></span>
+                    )}
                   </div>
 
-                  {/* Actions */}
+                  {/* Title */}
+                  <h3 className="text-base font-semibold text-white mb-2.5 line-clamp-2">
+                    {pattern.title}
+                  </h3>
+                </div>
+
+                {/* Card Body */}
+                <div className="px-3 pb-2.5 flex-1 space-y-2">
+                  {/* Duration */}
+                  <div className="flex items-center gap-1.5 text-xs text-zinc-400">
+                    <Clock className="w-3.5 h-3.5 text-zinc-500" />
+                    <span>{pattern.duration_minutes}min</span>
+                  </div>
+
+                  {/* Meeting Type */}
+                  <div className={`flex items-center gap-1.5 text-xs ${meetingDisplay.color}`}>
+                    <MeetingIcon className="w-3.5 h-3.5" />
+                    <span className="truncate">{meetingDisplay.label}</span>
+                  </div>
+
+                  {/* Date Range */}
+                  <div className="flex items-center gap-1.5 text-xs text-zinc-400">
+                    <Calendar className="w-3.5 h-3.5 text-zinc-500" />
+                    <span className="line-clamp-1">
+                      {format(new Date(pattern.start_date), 'MMM d')}
+                      {pattern.end_date ? ` - ${format(new Date(pattern.end_date), 'MMM d')}` : ' - Ongoing'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Card Footer - Actions */}
+                <div className="px-3 py-2.5 pt-2 border-t border-zinc-700/50">
                   {isAdmin ? (
-                    <div className="flex items-center gap-1 flex-shrink-0">
+                    <div className="flex items-center justify-end gap-1.5">
                       <button
                         onClick={() => onEditPattern?.(pattern)}
-                        className="p-2 hover:bg-zinc-700 rounded-lg transition-colors group/btn"
+                        className="p-1.5 hover:bg-zinc-700 rounded-lg transition-colors group/btn"
                         title="Edit"
                       >
-                        <Edit2 className="w-4 h-4 text-zinc-400 group-hover/btn:text-white transition-colors" />
+                        <Edit2 className="w-3.5 h-3.5 text-zinc-400 group-hover/btn:text-white transition-colors" />
                       </button>
                       <button
                         onClick={() => deletePattern(pattern.id)}
-                        className="p-2 hover:bg-red-500/10 rounded-lg transition-colors group/btn"
+                        className="p-1.5 hover:bg-red-500/10 rounded-lg transition-colors group/btn"
                         title="Delete"
                       >
-                        <Trash2 className="w-4 h-4 text-zinc-400 group-hover/btn:text-red-400 transition-colors" />
+                        <Trash2 className="w-3.5 h-3.5 text-zinc-400 group-hover/btn:text-red-400 transition-colors" />
                       </button>
                     </div>
                   ) : (
                     pattern.is_active && (
                       <button
                         onClick={() => handleViewSlots(pattern)}
-                        className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-semibold transition-colors flex-shrink-0"
+                        className="w-full px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
                       >
+                        <Calendar className="w-3.5 h-3.5" />
                         View Slots
                       </button>
                     )
                   )}
                 </div>
               </div>
-            </div>
             )
           })}
         </div>

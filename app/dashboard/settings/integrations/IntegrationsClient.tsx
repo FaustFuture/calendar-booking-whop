@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { Video, CheckCircle2, XCircle, Calendar, Loader2 } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import { IntegrationCardSkeleton } from '@/app/dashboard/components/shared/ListItemSkeleton'
+import { useConfirm } from '@/lib/context/ConfirmDialogContext'
+import { useToast } from '@/lib/context/ToastContext'
 
 interface OAuthConnection {
   id: string
@@ -15,6 +17,8 @@ interface OAuthConnection {
 }
 
 export default function IntegrationsClient() {
+  const confirm = useConfirm()
+  const { showError } = useToast()
   const [connections, setConnections] = useState<OAuthConnection[]>([])
   const [loading, setLoading] = useState(true)
   const [connecting, setConnecting] = useState<'google' | 'zoom' | null>(null)
@@ -107,7 +111,15 @@ export default function IntegrationsClient() {
   }
 
   async function handleDisconnect(provider: 'google' | 'zoom') {
-    if (!confirm(`Are you sure you want to disconnect your ${provider === 'google' ? 'Google' : 'Zoom'} account?`)) {
+    const confirmed = await confirm.confirm({
+      title: 'Disconnect Account?',
+      message: `Are you sure you want to disconnect your ${provider === 'google' ? 'Google' : 'Zoom'} account?`,
+      confirmText: 'Disconnect',
+      cancelText: 'Cancel',
+      variant: 'warning',
+    })
+
+    if (!confirmed) {
       return
     }
 
@@ -121,11 +133,11 @@ export default function IntegrationsClient() {
       if (response.ok) {
         loadConnections()
       } else {
-        alert('Failed to disconnect account. Please try again.')
+        showError('Disconnect Failed', 'Failed to disconnect account. Please try again.')
       }
     } catch (error) {
       console.error('Failed to disconnect:', error)
-      alert('Failed to disconnect account. Please try again.')
+      showError('Disconnect Failed', 'Failed to disconnect account. Please try again.')
     }
   }
 

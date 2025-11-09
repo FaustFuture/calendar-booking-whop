@@ -213,12 +213,12 @@ export default function ConditionalSelect({
                 type="button"
                 onClick={() => handleConnect('google')}
                 disabled={connecting === 'google'}
-                className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {connecting === 'google' ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Connecting...
+                    <span>Connecting...</span>
                   </>
                 ) : (
                   'Connect Google Account'
@@ -258,12 +258,12 @@ export default function ConditionalSelect({
                 type="button"
                 onClick={() => handleConnect('zoom')}
                 disabled={connecting === 'zoom'}
-                className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {connecting === 'zoom' ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Connecting...
+                    <span>Connecting...</span>
                   </>
                 ) : (
                   'Connect Zoom Account'

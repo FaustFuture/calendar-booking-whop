@@ -139,31 +139,78 @@ export async function POST(request: Request) {
     let meetingData = null
     let startTime = null
     let endTime = null
+    let adminId = body.admin_id
 
-    // Ensure admin user is also synced to Supabase (for foreign key constraint)
-    if (body.admin_id) {
-      try {
-        // We need to verify the admin exists in Supabase users table
-        const { data: adminExists } = await supabase
+    // Determine admin_id if not provided
+    if (!adminId) {
+      // First, try to use the authenticated user if they're an admin
+      if (whopUser && whopUser.role === 'admin') {
+        adminId = whopUser.userId
+        console.log('📋 Using authenticated admin user:', adminId)
+      } else if (body.pattern_id) {
+        // For pattern-based bookings, find an admin in the company
+        // Since patterns are company-scoped, we need to find an admin user
+        const { data: adminUser } = await supabase
           .from('users')
           .select('id')
-          .eq('id', body.admin_id)
+          .eq('role', 'admin')
+          .limit(1)
           .single()
 
-        if (!adminExists) {
-          console.log('⚠️ Admin user not found in Supabase, attempting to sync...')
-          // Note: In a real scenario, we'd need the admin's Whop data to sync them
-          // For now, we'll let the foreign key constraint error surface
+        if (adminUser) {
+          adminId = adminUser.id
+          console.log('📋 Determined admin_id from company admins:', adminId)
+        } else {
+          return NextResponse.json(
+            { error: 'No admin found for this company. Please contact support.' },
+            { status: 400 }
+          )
         }
-      } catch (error) {
-        console.log('⚠️ Could not verify admin user existence:', error)
+      } else if (body.slot_id) {
+        // For slot-based bookings, get admin_id from the slot
+        const { data: slotData } = await supabase
+          .from('availability_slots')
+          .select('admin_id')
+          .eq('id', body.slot_id)
+          .single()
+
+        if (slotData?.admin_id) {
+          adminId = slotData.admin_id
+          console.log('📋 Determined admin_id from slot:', adminId)
+        }
       }
+    }
+
+    // Ensure admin_id is set (required for bookings)
+    if (!adminId) {
+      return NextResponse.json(
+        { error: 'admin_id is required for booking creation' },
+        { status: 400 }
+      )
+    }
+
+    // Ensure admin user is also synced to Supabase (for foreign key constraint)
+    try {
+      // We need to verify the admin exists in Supabase users table
+      const { data: adminExists } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', adminId)
+        .single()
+
+      if (!adminExists) {
+        console.log('⚠️ Admin user not found in Supabase, attempting to sync...')
+        // Note: In a real scenario, we'd need the admin's Whop data to sync them
+        // For now, we'll let the foreign key constraint error surface
+      }
+    } catch (error) {
+      console.log('⚠️ Could not verify admin user existence:', error)
     }
 
     console.log('📋 Booking request body:', {
       slot_id: body.slot_id,
       pattern_id: body.pattern_id,
-      admin_id: body.admin_id,
+      admin_id: adminId,
       member_id: body.member_id,
       guest_email: body.guest_email,
       booking_start_time: body.booking_start_time,
@@ -243,7 +290,7 @@ export async function POST(request: Request) {
         })
 
         const meetingResult = await meetingService.generateMeetingLink(
-          body.admin_id, // Use admin's OAuth connection
+          adminId, // Use admin's OAuth connection
           provider,
           {
             title: body.title || meetingData.title || 'Meeting',
@@ -277,6 +324,7 @@ export async function POST(request: Request) {
 
     const insertData = {
       ...bookingData,
+      admin_id: adminId, // Use determined admin_id
       status: bookingData.status || 'upcoming',
       meeting_url: meetingUrl,
       // Set title and description from pattern/slot if not provided

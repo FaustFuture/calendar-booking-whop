@@ -3,12 +3,13 @@
 import { useState, useEffect } from 'react'
 import { User, ArrowLeft, ArrowRight, Check } from 'lucide-react'
 import { Drawer, DrawerHeader, DrawerContent, DrawerFooter } from '../shared/Drawer'
-import WizardStepper from '../shared/WizardStepper'
 import SegmentedControl, { SegmentOption } from '../shared/SegmentedControl'
 import ConditionalSelect, { MeetingType } from '../shared/ConditionalSelect'
 import SimplifiedSchedulePicker, { SimplifiedScheduleData } from '../shared/SchedulePicker/SimplifiedSchedulePicker'
 import SlotsPreviewCount from '../shared/SchedulePicker/SlotsPreviewCount'
 import SkeletonLoader from '../shared/SkeletonLoader'
+import { useToast } from '@/lib/context/ToastContext'
+import { useConfirm } from '@/lib/context/ConfirmDialogContext'
 
 interface CreateSlotDrawerProps {
   isOpen: boolean
@@ -20,8 +21,11 @@ interface CreateSlotDrawerProps {
     title: string
     description?: string
     duration_minutes: number
-    price?: number
     meeting_type?: string
+    meeting_config?: {
+      manualValue?: string
+      requiresGeneration?: boolean
+    } | string // Allow string for JSON parsing fallback
     start_date: string
     end_date?: string
     weekly_schedule: Record<string, Array<{ start: string; end: string }>>
@@ -35,13 +39,6 @@ const DURATION_OPTIONS: SegmentOption[] = [
   { value: '90', label: '90 min' },
 ]
 
-const PRICE_OPTIONS: SegmentOption[] = [
-  { value: 'free', label: 'Free' },
-  { value: '50', label: '$50' },
-  { value: '100', label: '$100' },
-  { value: '150', label: '$150' },
-]
-
 export default function CreateSlotDrawer({
   isOpen,
   onClose,
@@ -50,6 +47,8 @@ export default function CreateSlotDrawer({
   patternId,
   editData,
 }: CreateSlotDrawerProps) {
+  const { showError } = useToast()
+  const confirm = useConfirm()
   const [currentStep, setCurrentStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -59,8 +58,6 @@ export default function CreateSlotDrawer({
   const [description, setDescription] = useState('')
   const [duration, setDuration] = useState('30')
   const [customDuration, setCustomDuration] = useState('')
-  const [price, setPrice] = useState('free')
-  const [customPrice, setCustomPrice] = useState('')
   const [meetingType, setMeetingType] = useState<MeetingType>('google_meet')
   const [meetingValue, setMeetingValue] = useState('')
   const [connectedEmail, setConnectedEmail] = useState('')
@@ -100,19 +97,23 @@ export default function CreateSlotDrawer({
           setCustomDuration(durationStr)
         }
 
-        // Set price
-        const priceVal = editData.price || 0
-        if (priceVal === 0) {
-          setPrice('free')
-        } else if (['50', '100', '150'].includes(priceVal.toString())) {
-          setPrice(priceVal.toString())
-        } else {
-          setPrice('custom')
-          setCustomPrice(priceVal.toString())
-        }
-
         // Set meeting type
         setMeetingType((editData.meeting_type as MeetingType) || 'google_meet')
+        
+        // Set meeting value (manual link or location) from meeting_config
+        // Handle both parsed object and string JSON (for backwards compatibility)
+        let meetingConfig = editData.meeting_config
+        if (typeof meetingConfig === 'string') {
+          try {
+            meetingConfig = JSON.parse(meetingConfig)
+          } catch (e) {
+            console.error('Failed to parse meeting_config:', e)
+          }
+        }
+        
+        if (meetingConfig?.manualValue) {
+          setMeetingValue(meetingConfig.manualValue)
+        }
 
         // Set schedule data - transform the weekly_schedule to match SimplifiedScheduleData format
         const transformedDays: Record<string, { enabled: boolean; timeRanges: Array<{ id: string; startTime: string; endTime: string }> }> = {}
@@ -153,10 +154,6 @@ export default function CreateSlotDrawer({
 
     if (duration === 'custom' && (!customDuration || parseInt(customDuration) <= 0)) {
       newErrors.duration = 'Please enter a valid duration'
-    }
-
-    if (price === 'custom' && (!customPrice || parseFloat(customPrice) < 0)) {
-      newErrors.price = 'Please enter a valid price'
     }
 
     if (meetingType === 'manual_link' && !meetingValue.trim()) {
@@ -229,15 +226,11 @@ export default function CreateSlotDrawer({
       // Calculate final values
       const durationMinutes = duration === 'custom' ? parseInt(customDuration) : parseInt(duration)
 
-      // Calculate final price
-      const finalPrice = price === 'free' ? 0 : (price === 'custom' ? parseFloat(customPrice) : parseFloat(price))
-
       // Prepare common data
       const commonData = {
         title,
         description: description || null,
         duration_minutes: durationMinutes,
-        price: finalPrice,
         meeting_type: meetingType,
         meeting_config: {
           requiresGeneration: meetingType === 'google_meet' || meetingType === 'zoom',
@@ -267,7 +260,7 @@ export default function CreateSlotDrawer({
       onClose()
     } catch (error) {
       console.error(`Error ${patternId ? 'updating' : 'creating'} availability pattern:`, error)
-      alert('Failed to create availability pattern. Please try again.')
+      showError('Failed to create availability pattern', 'Please try again.')
     } finally {
       setSubmitting(false)
     }
@@ -279,8 +272,6 @@ export default function CreateSlotDrawer({
     setDescription('')
     setDuration('30')
     setCustomDuration('')
-    setPrice('free')
-    setCustomPrice('')
     setMeetingType('google_meet')
     setMeetingValue('')
     setScheduleData({
@@ -294,22 +285,27 @@ export default function CreateSlotDrawer({
     setErrors({})
   }
 
-  function handleClose() {
+  async function handleClose() {
     // If editing, check if changes were made
     if (patternId && editData) {
       // Compare current form values with original edit data
       const durationChanged = (duration === 'custom' ? customDuration : duration) !== editData.duration_minutes.toString()
-      const priceChanged = (price === 'free' ? '0' : (price === 'custom' ? customPrice : price)) !== (editData.price || 0).toString()
 
       const hasChanges =
         title !== editData.title ||
         description !== (editData.description || '') ||
         durationChanged ||
-        priceChanged ||
         meetingType !== (editData.meeting_type || 'google_meet')
 
       if (hasChanges) {
-        if (confirm('Are you sure you want to close? Your changes will be lost.')) {
+        const confirmed = await confirm.confirm({
+          title: 'Discard Changes?',
+          message: 'Are you sure you want to close? Your changes will be lost.',
+          confirmText: 'Discard',
+          cancelText: 'Keep Editing',
+          variant: 'warning',
+        })
+        if (confirmed) {
           resetForm()
           onClose()
         }
@@ -324,7 +320,14 @@ export default function CreateSlotDrawer({
       )
 
       if (currentStep > 1 || title || description || hasScheduleData) {
-        if (confirm('Are you sure you want to close? Your progress will be lost.')) {
+        const confirmed = await confirm.confirm({
+          title: 'Discard Progress?',
+          message: 'Are you sure you want to close? Your progress will be lost.',
+          confirmText: 'Discard',
+          cancelText: 'Continue',
+          variant: 'warning',
+        })
+        if (confirmed) {
           resetForm()
           onClose()
         }
@@ -336,55 +339,7 @@ export default function CreateSlotDrawer({
 
   return (
     <Drawer open={isOpen} onClose={handleClose} width="lg">
-      {/* Header with Stepper */}
-      <DrawerHeader title={patternId ? "Edit Availability" : "Create Availability"} onClose={handleClose}>
-        <div className="flex items-center gap-2">
-          {steps.map((step, index) => {
-            const stepNumber = index + 1
-            const isCompleted = stepNumber < currentStep
-            const isActive = stepNumber === currentStep
-
-            return (
-              <div key={step.number} className="flex items-center flex-1">
-                <div className="flex flex-col items-center gap-1 flex-1">
-                  <div
-                    className={`
-                      w-8 h-8 rounded-full flex items-center justify-center
-                      text-sm font-semibold transition-all
-                      ${isCompleted ? 'bg-emerald-500 text-white' : ''}
-                      ${isActive ? 'bg-emerald-500 text-white' : ''}
-                      ${!isCompleted && !isActive ? 'bg-zinc-800 text-zinc-500' : ''}
-                    `}
-                  >
-                    {stepNumber}
-                  </div>
-                  <span
-                    className={`
-                      text-xs font-medium
-                      ${isActive ? 'text-emerald-400' : ''}
-                      ${isCompleted ? 'text-zinc-300' : ''}
-                      ${!isCompleted && !isActive ? 'text-zinc-500' : ''}
-                    `}
-                  >
-                    {step.label}
-                  </span>
-                </div>
-
-                {index < steps.length - 1 && (
-                  <div className="flex-1 h-0.5 mb-5 transition-all">
-                    <div
-                      className={`
-                        h-full transition-all duration-300
-                        ${stepNumber < currentStep ? 'bg-emerald-500' : 'bg-zinc-700'}
-                      `}
-                    />
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </DrawerHeader>
+      <DrawerHeader title={patternId ? "Edit Availability" : "Create Availability"} onClose={handleClose} />
 
       {/* Content */}
       <DrawerContent>
@@ -454,27 +409,6 @@ export default function CreateSlotDrawer({
                   />
                   {errors.duration && (
                     <p className="text-sm text-red-400">{errors.duration}</p>
-                  )}
-                </div>
-
-                {/* Price */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-zinc-100">
-                    Price per booking <span className="text-zinc-500">(Optional)</span>
-                  </label>
-                  <SegmentedControl
-                    options={PRICE_OPTIONS}
-                    value={price}
-                    onChange={setPrice}
-                    allowCustom
-                    customValue={customPrice}
-                    onCustomChange={setCustomPrice}
-                    customPlaceholder="Enter amount"
-                    customUnit="USD"
-                    name="price"
-                  />
-                  {errors.price && (
-                    <p className="text-sm text-red-400">{errors.price}</p>
                   )}
                 </div>
 

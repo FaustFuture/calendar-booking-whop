@@ -10,6 +10,8 @@ import Drawer from '../shared/Drawer/Drawer'
 import DrawerHeader from '../shared/Drawer/DrawerHeader'
 import DrawerContent from '../shared/Drawer/DrawerContent'
 import DrawerFooter from '../shared/Drawer/DrawerFooter'
+import { useConfirm } from '@/lib/context/ConfirmDialogContext'
+import { useToast } from '@/lib/context/ToastContext'
 
 interface RecordingsTabProps {
   roleOverride?: 'admin' | 'member'
@@ -17,12 +19,16 @@ interface RecordingsTabProps {
 }
 
 export default function RecordingsTab({ roleOverride, companyId }: RecordingsTabProps) {
+  const confirm = useConfirm()
+  const { showSuccess, showError } = useToast()
   const [recordings, setRecordings] = useState<RecordingWithRelations[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedRecording, setSelectedRecording] = useState<RecordingWithRelations | null>(null)
   const [filterProvider, setFilterProvider] = useState<RecordingProvider | 'all'>('all')
   const [filterStatus, setFilterStatus] = useState<RecordingStatus | 'all'>('all')
+
+  console.log('RecordingsTab', recordings)
 
   useEffect(() => {
     loadRecordings()
@@ -47,7 +53,15 @@ export default function RecordingsTab({ roleOverride, companyId }: RecordingsTab
   }
 
   async function deleteRecording(recordingId: string) {
-    if (!confirm('Are you sure you want to delete this recording?')) {
+    const confirmed = await confirm.confirm({
+      title: 'Delete Recording?',
+      message: 'Are you sure you want to delete this recording? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    })
+
+    if (!confirmed) {
       return
     }
 
@@ -59,11 +73,15 @@ export default function RecordingsTab({ roleOverride, companyId }: RecordingsTab
       })
 
       if (response.ok) {
-        // Reload recordings
+        showSuccess('Recording Deleted', 'The recording has been deleted successfully.')
         loadRecordings()
+      } else {
+        const errorData = await response.json()
+        showError('Delete Failed', errorData.error || 'Failed to delete the recording.')
       }
     } catch (error) {
       console.error('Error deleting recording:', error)
+      showError('Delete Failed', 'An error occurred while deleting the recording.')
     }
   }
 

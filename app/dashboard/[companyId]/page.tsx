@@ -2,6 +2,8 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { verifyWhopUser, syncWhopUserToSupabase } from "@/lib/auth";
 import { WhopUserProvider } from "@/lib/context/WhopUserContext";
+import { ToastProvider } from "@/lib/context/ToastContext";
+import { ConfirmDialogProvider } from "@/lib/context/ConfirmDialogContext";
 import DashboardTabs from "@/app/dashboard/components/DashboardTabs";
 
 export default async function DashboardPage({ params }: { params: Promise<{ companyId: string }> }) {
@@ -18,12 +20,12 @@ export default async function DashboardPage({ params }: { params: Promise<{ comp
   const whopUser = authResult.user;
 
   // Sync user to Supabase for relationships
-  try {
-    await syncWhopUserToSupabase(whopUser);
-  } catch (error) {
-    console.error('Failed to sync user to database:', error);
-    redirect('/auth/error?message=' + encodeURIComponent('Failed to sync user data. Please try refreshing the page.'));
-  }
+  // try {
+  //   await syncWhopUserToSupabase(whopUser);
+  // } catch (error) {
+  //   console.error('Failed to sync user to database:', error);
+  //   redirect('/auth/error?message=' + encodeURIComponent('Failed to sync user data. Please try refreshing the page.'));
+  // }
 
   // Prepare user object for context
   const userContextData = {
@@ -35,10 +37,14 @@ export default async function DashboardPage({ params }: { params: Promise<{ comp
   };
 
   return (
-    <WhopUserProvider user={userContextData}>
-      <div className="min-h-screen bg-background">
-        <DashboardTabs companyId={companyId} />
-      </div>
-    </WhopUserProvider>
+    <ToastProvider>
+      <ConfirmDialogProvider>
+        <WhopUserProvider user={userContextData}>
+          <div className="min-h-screen bg-background">
+            <DashboardTabs companyId={companyId} />
+          </div>
+        </WhopUserProvider>
+      </ConfirmDialogProvider>
+    </ToastProvider>
   );
 }

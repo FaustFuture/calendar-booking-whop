@@ -22,12 +22,6 @@ export default function SkeletonLoader() {
         <div className="h-11 bg-zinc-800 rounded-lg w-2/3" />
       </div>
 
-      {/* Price Field */}
-      <div className="space-y-2">
-        <div className="h-4 bg-zinc-800 rounded w-28" />
-        <div className="h-11 bg-zinc-800 rounded-lg w-2/3" />
-      </div>
-
       {/* Meeting Type Field */}
       <div className="space-y-2">
         <div className="h-4 bg-zinc-800 rounded w-32" />

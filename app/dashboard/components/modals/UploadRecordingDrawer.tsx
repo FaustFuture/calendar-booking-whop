@@ -9,6 +9,7 @@ import Drawer from '../shared/Drawer/Drawer'
 import DrawerHeader from '../shared/Drawer/DrawerHeader'
 import DrawerContent from '../shared/Drawer/DrawerContent'
 import DrawerFooter from '../shared/Drawer/DrawerFooter'
+import { useToast } from '@/lib/context/ToastContext'
 
 const recordingSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200),
@@ -63,6 +64,7 @@ export default function UploadRecordingDrawer({
   companyId,
   bookingId,
 }: UploadRecordingDrawerProps) {
+  const { showError } = useToast()
   const [loading, setLoading] = useState(false)
   const supabase = createClient()
 
@@ -108,7 +110,7 @@ export default function UploadRecordingDrawer({
       onClose()
     } catch (error) {
       console.error('Error uploading recording:', error)
-      alert('Failed to upload recording. Please try again.')
+      showError('Upload Failed', 'Failed to upload recording. Please try again.')
     } finally {
       setLoading(false)
     }
