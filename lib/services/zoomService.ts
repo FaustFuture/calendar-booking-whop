@@ -40,10 +40,18 @@ export class ZoomService {
       )
     }
 
+    // Zoom requires explicit scopes to be requested
+    // Note: Zoom uses the format resource:action:subresource
+    const scopes = [
+      'meeting:write:meeting',  // Create a meeting for a user
+      'user:read:user',         // View a user
+    ]
+
     const params = new URLSearchParams({
       client_id: this.clientId,
       redirect_uri: this.redirectUri,
       response_type: 'code',
+      scope: scopes.join(' '), // Zoom expects space-separated scopes
       state,
     })
 
@@ -61,10 +69,18 @@ export class ZoomService {
     }
 
     // Request recording scope for accessing cloud recordings
+    // Note: Zoom uses the format resource:action:subresource
+    const scopes = [
+      'meeting:write:meeting',           // Create a meeting for a user
+      'user:read:user',                  // View a user
+      'cloud_recording:read:recording',  // View a recording
+    ]
+
     const params = new URLSearchParams({
       client_id: this.clientId,
       redirect_uri: this.redirectUri,
       response_type: 'code',
+      scope: scopes.join(' '), // Zoom expects space-separated scopes
       state,
     })
 

@@ -104,12 +104,15 @@ After running the migration, verify these tables exist:
 1. Go to [Zoom App Marketplace](https://marketplace.zoom.us/)
 2. Click **Develop** → **Build App**
 3. Choose **OAuth** app type
-4. Click **Create**
-5. Fill in basic information:
+4. **IMPORTANT**: Choose **User-managed** app type (not Account-level)
+   - User-managed apps allow individual users to authorize the app
+   - Account-level apps require admin/owner approval and may have different scope requirements
+5. Click **Create**
+6. Fill in basic information:
    - **App name**: Your calendar app name
    - **Short description**: Brief description
    - **Developer contact**: Your information
-6. Click **Continue**
+7. Click **Continue**
 
 ### Step 2: Configure App Credentials
 
@@ -126,16 +129,25 @@ After running the migration, verify these tables exist:
 ### Step 3: Configure Scopes
 
 1. Navigate to the **Scopes** tab
-2. Add the following scopes:
-   - `meeting:write` - Create meetings
-   - `user:read` - Read user information
-3. Click **Continue**
+2. **Enable** (check the boxes for) the following scopes:
+   - `meeting:write:meeting` - Create a meeting for a user
+   - `user:read:user` - View a user
+   - (Optional) `cloud_recording:read:recording` - View recordings (if you need recording access)
+3. **Important**: Make sure the checkboxes are **checked/enabled**, not just added to the list
+4. Click **Continue**
+
+**Note**: These are user-level scopes that work with any Zoom account role (Owner, Admin, or Member). If you're using an Account-level app, you may need additional permissions or admin approval.
 
 ### Step 4: Activation
 
 1. Complete all required sections
 2. Click **Activate** when ready
 3. For development, your app is automatically in development mode
+
+**Important Notes:**
+- **User Role**: Any Zoom user (Owner, Admin, or Member) can authorize a User-managed OAuth app
+- **Account Restrictions**: Some Zoom accounts may have restrictions on installing apps - check with your Zoom account admin if you encounter authorization issues
+- **Scope Permissions**: The scopes `meeting:write:meeting` and `user:read:user` are user-level scopes and don't require special account permissions
 
 ---
 

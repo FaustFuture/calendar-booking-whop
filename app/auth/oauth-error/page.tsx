@@ -11,6 +11,11 @@ const ERROR_MESSAGES: Record<string, string> = {
   database_error: 'Database error occurred',
   callback_failed: 'OAuth callback failed',
   access_denied: 'Access was denied',
+  token_exchange_failed: 'Failed to exchange authorization code for tokens',
+  user_info_failed: 'Failed to retrieve user information from Zoom',
+  user_not_found: 'User not found in database. Please ensure you are logged in.',
+  invalid_user: 'User ID mismatch. Please try again.',
+  authentication_failed: 'Authentication failed. Please try again.',
 }
 
 function OAuthErrorContent() {
@@ -18,7 +23,8 @@ function OAuthErrorContent() {
   const provider = searchParams.get('provider')
   const companyId = searchParams.get('companyId')
   const error = searchParams.get('error') || 'unknown_error'
-  const errorMessage = ERROR_MESSAGES[error] || 'An unknown error occurred'
+  const customMessage = searchParams.get('message')
+  const errorMessage = customMessage || ERROR_MESSAGES[error] || 'An unknown error occurred'
 
   useEffect(() => {
     // Send error message to parent window

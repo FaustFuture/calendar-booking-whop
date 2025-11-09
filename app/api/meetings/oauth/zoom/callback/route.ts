@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { zoomService } from '@/lib/services/zoomService'
+import { syncWhopUserToSupabase, requireWhopAuth } from '@/lib/auth/whop'
 
 export async function GET(request: NextRequest) {
   try {
@@ -52,7 +53,37 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createClient()
 
-    // Use userId directly (from Whop authentication)
+    // Verify user exists in Supabase (required for foreign key constraint)
+    // Try to get user from Supabase first
+    const { data: existingUser, error: userCheckError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', userId)
+      .single()
+
+    // If user doesn't exist, try to sync from Whop
+    if (!existingUser || userCheckError) {
+      console.log('User not found in Supabase, attempting to sync from Whop...')
+      try {
+        const whopUser = await requireWhopAuth(companyId, true)
+        await syncWhopUserToSupabase(whopUser)
+        
+        // Verify userId matches
+        if (whopUser.userId !== userId) {
+          console.error('User ID mismatch:', { stateUserId: userId, whopUserId: whopUser.userId })
+          const errorUrl = companyId
+            ? `/auth/oauth-error?error=invalid_user&provider=zoom&companyId=${companyId}`
+            : `/auth/oauth-error?error=invalid_user&provider=zoom`
+          return NextResponse.redirect(new URL(errorUrl, request.url))
+        }
+      } catch (authError) {
+        console.error('Failed to sync user from Whop:', authError)
+        const errorUrl = companyId
+          ? `/auth/oauth-error?error=user_not_found&provider=zoom&companyId=${companyId}&message=User not found. Please ensure you are logged in and try again.`
+          : `/auth/oauth-error?error=user_not_found&provider=zoom&message=User not found. Please ensure you are logged in and try again.`
+        return NextResponse.redirect(new URL(errorUrl, request.url))
+      }
+    }
 
     // Exchange code for tokens
     const tokens = await zoomService.exchangeCodeForTokens(code)
@@ -130,6 +161,13 @@ export async function GET(request: NextRequest) {
     )
   } catch (error) {
     console.error('Zoom OAuth callback error:', error)
+    
+    // Log detailed error information for debugging
+    if (error instanceof Error) {
+      console.error('Error message:', error.message)
+      console.error('Error stack:', error.stack)
+    }
+    
     // Try to extract companyId from URL state parameter for error redirect
     const searchParams = request.nextUrl.searchParams
     const state = searchParams.get('state')
@@ -138,9 +176,30 @@ export async function GET(request: NextRequest) {
       const stateParts = state.split(':')
       companyId = stateParts[1]
     }
+    
+    // Determine specific error type
+    let errorType = 'callback_failed'
+    let errorMessage = 'OAuth callback failed'
+    
+    if (error instanceof Error) {
+      if (error.message.includes('exchange')) {
+        errorType = 'token_exchange_failed'
+        errorMessage = 'Failed to exchange authorization code for tokens'
+      } else if (error.message.includes('user info') || error.message.includes('getUserInfo')) {
+        errorType = 'user_info_failed'
+        errorMessage = 'Failed to retrieve user information from Zoom'
+      } else if (error.message.includes('database') || error.message.includes('insert') || error.message.includes('update')) {
+        errorType = 'database_error'
+        errorMessage = 'Failed to save OAuth connection to database'
+      } else if (error.message.includes('user_id') || error.message.includes('user not found')) {
+        errorType = 'user_not_found'
+        errorMessage = 'User not found in database. Please ensure you are logged in.'
+      }
+    }
+    
     const errorUrl = companyId
-      ? `/auth/oauth-error?error=${encodeURIComponent('callback_failed')}&provider=zoom&companyId=${companyId}`
-      : `/auth/oauth-error?error=${encodeURIComponent('callback_failed')}&provider=zoom`
+      ? `/auth/oauth-error?error=${encodeURIComponent(errorType)}&provider=zoom&companyId=${companyId}&message=${encodeURIComponent(errorMessage)}`
+      : `/auth/oauth-error?error=${encodeURIComponent(errorType)}&provider=zoom&message=${encodeURIComponent(errorMessage)}`
     return NextResponse.redirect(new URL(errorUrl, request.url))
   }
 }

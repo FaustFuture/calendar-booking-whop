@@ -353,7 +353,7 @@ export default function UpcomingTab({ roleOverride, companyId }: UpcomingTabProp
                             <ExternalLink className="w-4 h-4" />
                             Join
                           </a>
-                          <button
+                          {/* <button
                             onClick={(e) => {
                               e.stopPropagation()
                               copyMeetingLink(booking.id, booking.meeting_url!)
@@ -366,7 +366,7 @@ export default function UpcomingTab({ roleOverride, companyId }: UpcomingTabProp
                             ) : (
                               <Copy className="w-4 h-4 text-zinc-400 group-hover/copy:text-zinc-200 transition-colors" />
                             )}
-                          </button>
+                          </button> */}
                         </>
                       )}
                       {isAdmin && (
