@@ -108,10 +108,34 @@ function ToastContainer({ toasts, onRemove }: { toasts: Toast[]; onRemove: (id: 
 
 function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) => void }) {
   const iconConfig = {
-    success: { icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
-    error: { icon: XCircle, color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20' },
-    warning: { icon: AlertCircle, color: 'text-yellow-400', bg: 'bg-yellow-500/10', border: 'border-yellow-500/20' },
-    info: { icon: Info, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
+    success: { 
+      icon: CheckCircle2, 
+      color: 'text-emerald-400', 
+      bg: 'bg-zinc-900', 
+      border: 'border-emerald-500/50',
+      titleColor: 'text-emerald-400'
+    },
+    error: { 
+      icon: XCircle, 
+      color: 'text-red-400', 
+      bg: 'bg-zinc-900', 
+      border: 'border-red-500/50',
+      titleColor: 'text-red-400'
+    },
+    warning: { 
+      icon: AlertCircle, 
+      color: 'text-yellow-400', 
+      bg: 'bg-zinc-900', 
+      border: 'border-yellow-500/50',
+      titleColor: 'text-yellow-400'
+    },
+    info: { 
+      icon: Info, 
+      color: 'text-blue-400', 
+      bg: 'bg-zinc-900', 
+      border: 'border-blue-500/50',
+      titleColor: 'text-blue-400'
+    },
   }
 
   const config = iconConfig[toast.type]
@@ -120,7 +144,7 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) =
   return (
     <div
       className={`
-        relative overflow-hidden rounded-lg border backdrop-blur-sm shadow-lg
+        relative overflow-hidden rounded-lg border shadow-lg
         ${config.bg} ${config.border}
         animate-fade-in
       `}
@@ -129,14 +153,14 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) =
         <div className="flex items-start gap-3">
           <Icon className={`w-5 h-5 ${config.color} flex-shrink-0 mt-0.5`} />
           <div className="flex-1 min-w-0">
-            <p className={`text-sm font-semibold ${config.color}`}>{toast.title}</p>
+            <p className={`text-sm font-semibold ${config.titleColor}`}>{toast.title}</p>
             {toast.description && (
-              <p className="text-sm text-zinc-300 mt-1">{toast.description}</p>
+              <p className="text-sm text-zinc-200 mt-1">{toast.description}</p>
             )}
           </div>
           <button
             onClick={() => onRemove(toast.id)}
-            className="flex-shrink-0 p-1 hover:bg-zinc-800/50 rounded transition-colors"
+            className="flex-shrink-0 p-1 hover:bg-zinc-800 rounded transition-colors"
             aria-label="Close"
           >
             <X className="w-4 h-4 text-zinc-400" />

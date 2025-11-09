@@ -1,16 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { createClient } from '@/lib/supabase/client'
 import { Drawer, DrawerHeader, DrawerContent, DrawerFooter } from '../shared/Drawer'
 import { useToast } from '@/lib/context/ToastContext'
 
 const bookingSchema = z.object({
-  member_id: z.string().uuid('Please select a member'),
-  slot_id: z.string().uuid('Please select a time slot').optional(),
+  member_id: z.string().min(1, 'Please select a member'),
   title: z.string().min(1, 'Title is required').max(200),
   description: z.string().max(1000).optional(),
   meeting_url: z.string().url('Must be a valid URL').optional().or(z.literal('')),
@@ -34,9 +32,8 @@ export default function CreateBookingDrawer({
 }: CreateBookingDrawerProps) {
   const { showError } = useToast()
   const [loading, setLoading] = useState(false)
+  const [membersLoading, setMembersLoading] = useState(false)
   const [members, setMembers] = useState<Array<{ id: string; name: string; email: string }>>([])
-  const [slots, setSlots] = useState<Array<{ id: string; start_time: string; end_time: string }>>([])
-  const supabase = createClient()
 
   const {
     register,
@@ -47,32 +44,30 @@ export default function CreateBookingDrawer({
     resolver: zodResolver(bookingSchema),
   })
 
-  // Load members and available slots when modal opens
-  useState(() => {
+  // Load members when modal opens
+  useEffect(() => {
     if (isOpen) {
-      loadData()
+      loadMembers()
     }
-  })
+  }, [isOpen])
 
-  async function loadData() {
-    // Load members
-    const { data: membersData } = await supabase
-      .from('users')
-      .select('id, name, email')
-      .eq('role', 'member')
-      .order('name')
-
-    setMembers(membersData || [])
-
-    // Load available slots (slots still have admin_id, but we'll load all available slots)
-    // In the future, slots should also be company-scoped
-    const { data: slotsData } = await supabase
-      .from('availability_slots')
-      .select('id, start_time, end_time')
-      .eq('is_available', true)
-      .order('start_time')
-
-    setSlots(slotsData || [])
+  async function loadMembers() {
+    setMembersLoading(true)
+    try {
+      // Load members from Whop API
+      const membersResponse = await fetch(`/api/members?companyId=${companyId}`)
+      if (!membersResponse.ok) {
+        const errorData = await membersResponse.json()
+        throw new Error(errorData.error || 'Failed to load members')
+      }
+      const membersData = await membersResponse.json()
+      setMembers(membersData.members || [])
+    } catch (error) {
+      console.error('Error loading members:', error)
+      showError('Failed to Load Members', error instanceof Error ? error.message : 'Failed to load members. Please try again.')
+    } finally {
+      setMembersLoading(false)
+    }
   }
 
   async function onSubmit(data: BookingFormData) {
@@ -119,34 +114,22 @@ export default function CreateBookingDrawer({
             <label className="block text-sm font-medium text-zinc-300 mb-2">
               Member *
             </label>
-            <select {...register('member_id')} className="input w-full">
-              <option value="">Select a member</option>
+            <select 
+              {...register('member_id')} 
+              className="input w-full"
+              disabled={membersLoading}
+            >
+              <option value="">
+                {membersLoading ? 'Loading members...' : 'Select a member'}
+              </option>
               {members.map((member) => (
                 <option key={member.id} value={member.id}>
-                  {member.name} ({member.email})
+                  {member.name} {member.email ? `(${member.email})` : ''}
                 </option>
               ))}
             </select>
             {errors.member_id && (
               <p className="text-red-400 text-sm mt-1">{errors.member_id.message}</p>
-            )}
-          </div>
-
-          {/* Time Slot Selection (Optional) */}
-          <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-2">
-              Time Slot (Optional)
-            </label>
-            <select {...register('slot_id')} className="input w-full">
-              <option value="">No specific time slot</option>
-              {slots.map((slot) => (
-                <option key={slot.id} value={slot.id}>
-                  {new Date(slot.start_time).toLocaleString()} - {new Date(slot.end_time).toLocaleTimeString()}
-                </option>
-              ))}
-            </select>
-            {errors.slot_id && (
-              <p className="text-red-400 text-sm mt-1">{errors.slot_id.message}</p>
             )}
           </div>
 

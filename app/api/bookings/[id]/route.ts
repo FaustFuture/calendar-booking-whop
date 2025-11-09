@@ -48,11 +48,45 @@ export async function PATCH(
     const { id } = await params
     const supabase = await createClient()
     const body = await request.json()
+    const { searchParams } = new URL(request.url)
+    const companyId = searchParams.get('companyId') || body.companyId
 
-    // Get authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'companyId is required' },
+        { status: 400 }
+      )
+    }
+
+    // Verify Whop authentication and company access
+    const { requireWhopAuth } = await import('@/lib/auth/whop')
+    const whopUser = await requireWhopAuth(companyId, true)
+
+    // Get the booking to check ownership and company
+    const { data: booking, error: fetchError } = await supabase
+      .from('bookings')
+      .select('member_id, company_id, status')
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !booking) {
+      return NextResponse.json({ error: 'Booking not found' }, { status: 404 })
+    }
+
+    // Verify company_id matches
+    if (booking.company_id !== companyId) {
+      return NextResponse.json(
+        { error: 'Booking does not belong to this company' },
+        { status: 403 }
+      )
+    }
+
+    // Check permissions: admins can update any booking, members can only update their own
+    if (whopUser.role === 'member' && booking.member_id !== whopUser.userId) {
+      return NextResponse.json(
+        { error: 'You can only update your own bookings' },
+        { status: 403 }
+      )
     }
 
     // Extract companyId from body (used for auth only, not a DB column)
@@ -62,6 +96,7 @@ export async function PATCH(
       .from('bookings')
       .update(updateData)
       .eq('id', id)
+      .eq('company_id', companyId) // Ensure we only update bookings in the correct company
       .select()
       .single()
 
@@ -71,8 +106,9 @@ export async function PATCH(
 
     return NextResponse.json({ data })
   } catch (error) {
+    console.error('Error updating booking:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
     )
   }

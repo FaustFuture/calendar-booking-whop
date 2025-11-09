@@ -45,9 +45,14 @@ export async function GET(request: Request) {
       .eq('company_id', companyId) // Filter by company_id first
       .order('created_at', { ascending: false })
 
-    // Filter by status if provided
+    // Filter by status if provided (supports comma-separated values)
     if (status) {
-      query = query.eq('status', status)
+      const statuses = status.split(',').map(s => s.trim()).filter(Boolean)
+      if (statuses.length === 1) {
+        query = query.eq('status', statuses[0])
+      } else if (statuses.length > 1) {
+        query = query.in('status', statuses)
+      }
     }
 
     // Members only see their own bookings within the company

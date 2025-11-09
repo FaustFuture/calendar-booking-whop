@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
+import useSWR from 'swr'
 import { Plus, Clock, Trash2, Edit2, Calendar, Video, Link as LinkIcon, MapPin } from 'lucide-react'
 import { AvailabilityPattern } from '@/lib/types/database'
 import { format } from 'date-fns'
@@ -10,6 +11,7 @@ import { AvailabilityPatternSkeleton } from '../shared/ListItemSkeleton'
 import { useWhopUser } from '@/lib/context/WhopUserContext'
 import { useConfirm } from '@/lib/context/ConfirmDialogContext'
 import { useToast } from '@/lib/context/ToastContext'
+import { fetcher } from '@/lib/utils/fetcher'
 
 interface AvailabilityTabProps {
   roleOverride?: 'admin' | 'member'
@@ -24,69 +26,53 @@ export default function AvailabilityTab({ roleOverride, companyId, hideHeader, o
   const { user } = useWhopUser() // Get current user from context
   const confirm = useConfirm()
   const { showSuccess, showError } = useToast()
-  const [patterns, setPatterns] = useState<AvailabilityPattern[]>([])
-  const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedPattern, setSelectedPattern] = useState<AvailabilityPattern | null>(null)
   const [isViewSlotsModalOpen, setIsViewSlotsModalOpen] = useState(false)
 
-  useEffect(() => {
-    loadPatterns()
-  }, [roleOverride, companyId]) // Refetch when role or companyId changes
-
-  async function loadPatterns() {
-    try {
-      setLoading(true)
-
-      const response = await fetch(`/api/availability/patterns?companyId=${companyId}`)
-      if (!response.ok) {
-        throw new Error('Failed to fetch availability patterns')
-      }
-
-      const data = await response.json()
-      const allPatterns = data.patterns || []
-
-      // For members, filter out patterns that are no longer bookable
-      if (roleOverride === 'member') {
-        const now = new Date()
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-
-        const bookablePatterns = allPatterns.filter((pattern: AvailabilityPattern) => {
-          // Must be active
-          if (!pattern.is_active) return false
-
-          // Check if pattern has ended
-          if (pattern.end_date) {
-            const endDate = new Date(pattern.end_date)
-            // If end date has passed, don't show it
-            if (endDate < today) return false
-          }
-
-          // Check if pattern has started
-          const startDate = new Date(pattern.start_date)
-          // Only show patterns that have started or start today
-          if (startDate > today) return false
-
-          return true
-        })
-
-        console.log('📋 [AvailabilityTab] Filtered patterns for members:', {
-          total: allPatterns.length,
-          bookable: bookablePatterns.length,
-          filtered: allPatterns.length - bookablePatterns.length
-        })
-
-        setPatterns(bookablePatterns)
-      } else {
-        // Admins see all patterns for management purposes
-        setPatterns(allPatterns)
-      }
-    } catch (error) {
-      console.error('Error loading data:', error)
-    } finally {
-      setLoading(false)
+  // Use SWR to fetch availability patterns
+  const { data, error, isLoading, mutate } = useSWR<{ patterns: AvailabilityPattern[] }>(
+    `/api/availability/patterns?companyId=${companyId}`,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: true,
     }
-  }
+  )
+
+  // Filter patterns based on role
+  const allPatterns = data?.patterns || []
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+  const patterns = roleOverride === 'member'
+    ? allPatterns.filter((pattern: AvailabilityPattern) => {
+        // Must be active
+        if (!pattern.is_active) return false
+
+        // Check if pattern has ended
+        if (pattern.end_date) {
+          const endDate = new Date(pattern.end_date)
+          if (endDate < today) return false
+        }
+
+        // Check if pattern has started
+        const startDate = new Date(pattern.start_date)
+        if (startDate > today) return false
+
+        return true
+      })
+    : allPatterns // Admins see all patterns
+
+  const loading = isLoading
+
+  // Show error if fetch failed
+  useEffect(() => {
+    if (error) {
+      console.error('Error loading availability patterns:', error)
+      showError('Failed to load availability patterns', error.message || 'Please try again.')
+    }
+  }, [error, showError])
 
   async function deletePattern(patternId: string) {
     const confirmed = await confirm.confirm({
@@ -110,7 +96,7 @@ export default function AvailabilityTab({ roleOverride, companyId, hideHeader, o
 
       if (response.ok) {
         showSuccess('Pattern Deleted', 'The availability pattern has been deleted successfully.')
-        loadPatterns()
+        mutate() // Refresh patterns using SWR mutate
       } else {
         const errorData = await response.json()
         showError('Delete Failed', errorData.error || 'Failed to delete the pattern.')
@@ -370,7 +356,7 @@ export default function AvailabilityTab({ roleOverride, companyId, hideHeader, o
         <CreateSlotDrawer
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          onSuccess={loadPatterns}
+          onSuccess={() => mutate()}
           companyId={companyId}
         />
       )}
@@ -384,7 +370,7 @@ export default function AvailabilityTab({ roleOverride, companyId, hideHeader, o
         currentUserId={user?.userId || null}
         currentUserEmail={user?.email || null}
         onBookingSuccess={() => {
-          loadPatterns()
+          mutate() // Refresh patterns using SWR mutate
           handleCloseViewSlots()
           onBookingSuccess?.()
         }}

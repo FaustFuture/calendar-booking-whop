@@ -1,15 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { createClient } from '@/lib/supabase/client'
 import Drawer from '../shared/Drawer/Drawer'
 import DrawerHeader from '../shared/Drawer/DrawerHeader'
 import DrawerContent from '../shared/Drawer/DrawerContent'
 import DrawerFooter from '../shared/Drawer/DrawerFooter'
 import { useToast } from '@/lib/context/ToastContext'
+import { Recording } from '@/lib/types/database'
 
 const recordingSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200),
@@ -54,7 +54,8 @@ interface UploadRecordingDrawerProps {
   onClose: () => void
   onSuccess: () => void
   companyId: string
-  bookingId?: string // Optional pre-selected booking
+  bookingId?: string // Optional pre-selected booking (will be auto-filled in form)
+  recording?: Recording // Optional recording for edit mode
 }
 
 export default function UploadRecordingDrawer({
@@ -63,54 +64,108 @@ export default function UploadRecordingDrawer({
   onSuccess,
   companyId,
   bookingId,
+  recording,
 }: UploadRecordingDrawerProps) {
-  const { showError } = useToast()
+  const { showError, showSuccess } = useToast()
   const [loading, setLoading] = useState(false)
-  const supabase = createClient()
+  const isEditMode = !!recording
 
   const {
     register,
     handleSubmit,
     formState: { errors },
     reset,
+    setValue,
   } = useForm<RecordingFormData>({
     resolver: zodResolver(recordingSchema),
     defaultValues: {
-      booking_id: bookingId,
+      title: recording?.title || '',
+      url: recording?.url || '',
+      booking_id: recording?.booking_id || bookingId,
     },
   })
+
+  // Update form when bookingId or recording changes
+  useEffect(() => {
+    if (recording) {
+      setValue('title', recording.title)
+      setValue('url', recording.url)
+      setValue('booking_id', recording.booking_id || bookingId)
+    } else if (bookingId) {
+      setValue('booking_id', bookingId)
+    }
+  }, [bookingId, recording, setValue])
 
   async function onSubmit(data: RecordingFormData) {
     setLoading(true)
     try {
       const embedUrl = getEmbedUrl(data.url)
 
-      // Get or create a general recording entry (not tied to specific booking)
-      const recordingData: any = {
-        title: data.title,
-        url: data.url,
-        playback_url: embedUrl, // Store embeddable version
-        provider: 'manual',
-        status: 'available',
-        recording_type: 'cloud',
-        auto_fetched: false,
+      // Use booking_id from form or from props
+      const finalBookingId = data.booking_id || bookingId
+
+      if (isEditMode && recording) {
+        // Update existing recording
+        const updateData: any = {
+          title: data.title,
+          url: data.url,
+          playback_url: embedUrl,
+          companyId, // Required for API route
+        }
+
+        const response = await fetch(`/api/recordings/${recording.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updateData),
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || 'Failed to update recording')
+        }
+
+        showSuccess('Recording Updated', 'The recording has been successfully updated.')
+      } else {
+        // Create new recording
+        const recordingData: any = {
+          title: data.title,
+          url: data.url,
+          playback_url: embedUrl, // Store embeddable version
+          provider: 'manual',
+          status: 'available',
+          recording_type: 'cloud',
+          auto_fetched: false,
+          companyId, // Required for API route
+        }
+
+        // Add booking_id if provided
+        if (finalBookingId) {
+          recordingData.booking_id = finalBookingId
+        }
+
+        const response = await fetch('/api/recordings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(recordingData),
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || 'Failed to upload recording')
+        }
+
+        showSuccess('Recording Uploaded', 'The recording has been successfully uploaded.')
       }
-
-      // Add booking_id if provided (it's optional now)
-      if (data.booking_id) {
-        recordingData.booking_id = data.booking_id
-      }
-
-      const { error } = await supabase.from('recordings').insert(recordingData)
-
-      if (error) throw error
 
       reset()
       onSuccess()
       onClose()
     } catch (error) {
-      console.error('Error uploading recording:', error)
-      showError('Upload Failed', 'Failed to upload recording. Please try again.')
+      console.error('Error saving recording:', error)
+      showError(
+        isEditMode ? 'Update Failed' : 'Upload Failed',
+        error instanceof Error ? error.message : `Failed to ${isEditMode ? 'update' : 'upload'} recording. Please try again.`
+      )
     } finally {
       setLoading(false)
     }
@@ -119,7 +174,7 @@ export default function UploadRecordingDrawer({
   return (
     <Drawer open={isOpen} onClose={onClose} width="md">
       <DrawerHeader
-        title="Upload Recording"
+        title={isEditMode ? 'Edit Recording' : 'Upload Recording'}
         onClose={onClose}
       />
 
@@ -179,7 +234,7 @@ export default function UploadRecordingDrawer({
             className="btn-primary flex-1"
             disabled={loading}
           >
-            {loading ? 'Uploading...' : 'Upload Recording'}
+            {loading ? (isEditMode ? 'Updating...' : 'Uploading...') : (isEditMode ? 'Update Recording' : 'Upload Recording')}
           </button>
         </div>
       </DrawerFooter>

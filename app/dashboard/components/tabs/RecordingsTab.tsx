@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
+import useSWR from 'swr'
 import { Video, Upload, Play, Trash2, Clock, Filter, X, ExternalLink } from 'lucide-react'
 import { RecordingWithRelations, RecordingProvider, RecordingStatus } from '@/lib/types/database'
 import { format } from 'date-fns'
@@ -12,6 +13,14 @@ import DrawerContent from '../shared/Drawer/DrawerContent'
 import DrawerFooter from '../shared/Drawer/DrawerFooter'
 import { useConfirm } from '@/lib/context/ConfirmDialogContext'
 import { useToast } from '@/lib/context/ToastContext'
+import { fetcher } from '@/lib/utils/fetcher'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 interface RecordingsTabProps {
   roleOverride?: 'admin' | 'member'
@@ -21,36 +30,30 @@ interface RecordingsTabProps {
 export default function RecordingsTab({ roleOverride, companyId }: RecordingsTabProps) {
   const confirm = useConfirm()
   const { showSuccess, showError } = useToast()
-  const [recordings, setRecordings] = useState<RecordingWithRelations[]>([])
-  const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedRecording, setSelectedRecording] = useState<RecordingWithRelations | null>(null)
   const [filterProvider, setFilterProvider] = useState<RecordingProvider | 'all'>('all')
-  const [filterStatus, setFilterStatus] = useState<RecordingStatus | 'all'>('all')
 
-  console.log('RecordingsTab', recordings)
-
-  useEffect(() => {
-    loadRecordings()
-  }, [roleOverride, companyId]) // Refetch when role or companyId changes
-
-  async function loadRecordings() {
-    try {
-      setLoading(true)
-
-      const response = await fetch(`/api/recordings?companyId=${companyId}`)
-      if (!response.ok) {
-        throw new Error('Failed to fetch recordings')
-      }
-
-      const result = await response.json()
-      setRecordings(result.data || [])
-    } catch (error) {
-      console.error('Error loading recordings:', error)
-    } finally {
-      setLoading(false)
+  // Use SWR to fetch recordings
+  const { data, error, isLoading, mutate } = useSWR<{ data: RecordingWithRelations[] }>(
+    `/api/recordings?companyId=${companyId}`,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: true,
     }
-  }
+  )
+
+  const recordings = data?.data || []
+  const loading = isLoading
+
+  // Show error if fetch failed
+  useEffect(() => {
+    if (error) {
+      console.error('Error loading recordings:', error)
+      showError('Failed to load recordings', error.message || 'Please try again.')
+    }
+  }, [error, showError])
 
   async function deleteRecording(recordingId: string) {
     const confirmed = await confirm.confirm({
@@ -74,7 +77,7 @@ export default function RecordingsTab({ roleOverride, companyId }: RecordingsTab
 
       if (response.ok) {
         showSuccess('Recording Deleted', 'The recording has been deleted successfully.')
-        loadRecordings()
+        mutate() // Refresh recordings using SWR mutate
       } else {
         const errorData = await response.json()
         showError('Delete Failed', errorData.error || 'Failed to delete the recording.')
@@ -144,7 +147,6 @@ export default function RecordingsTab({ roleOverride, companyId }: RecordingsTab
   // Filter recordings
   const filteredRecordings = recordings.filter((rec) => {
     if (filterProvider !== 'all' && rec.provider !== filterProvider) return false
-    if (filterStatus !== 'all' && rec.status !== filterStatus) return false
     return true
   })
 
@@ -200,35 +202,26 @@ export default function RecordingsTab({ roleOverride, companyId }: RecordingsTab
           </div>
 
           {/* Provider Filter */}
-          <select
+          <Select
             value={filterProvider}
-            onChange={(e) => setFilterProvider(e.target.value as any)}
-            className="input text-sm py-1.5 px-3"
+            onValueChange={(value) => setFilterProvider(value as RecordingProvider | 'all')}
           >
-            <option value="all">All Providers</option>
-            <option value="zoom">Zoom</option>
-            <option value="google">Google Meet</option>
-            <option value="manual">Manual</option>
-          </select>
-
-          {/* Status Filter */}
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as any)}
-            className="input text-sm py-1.5 px-3"
-          >
-            <option value="all">All Status</option>
-            <option value="available">Available</option>
-            <option value="processing">Processing</option>
-            <option value="failed">Failed</option>
-          </select>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="All Providers" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Providers</SelectItem>
+              <SelectItem value="zoom">Zoom</SelectItem>
+              <SelectItem value="google">Google Meet</SelectItem>
+              <SelectItem value="manual">Manual</SelectItem>
+            </SelectContent>
+          </Select>
 
           {/* Reset Filters */}
-          {(filterProvider !== 'all' || filterStatus !== 'all') && (
+          {filterProvider !== 'all' && (
             <button
               onClick={() => {
                 setFilterProvider('all')
-                setFilterStatus('all')
               }}
               className="text-xs text-zinc-400 hover:text-white flex items-center gap-1"
             >
@@ -261,7 +254,6 @@ export default function RecordingsTab({ roleOverride, companyId }: RecordingsTab
           <button
             onClick={() => {
               setFilterProvider('all')
-              setFilterStatus('all')
             }}
             className="text-emerald-400 text-sm mt-2 hover:underline"
           >
@@ -281,13 +273,16 @@ export default function RecordingsTab({ roleOverride, companyId }: RecordingsTab
 
                   {/* Content - 2 rows */}
                   <div className="flex-1 min-w-0">
-                    {/* Row 1: Title + Badges */}
+                    {/* Row 1: Title + Booking Name */}
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="text-base font-semibold text-white truncate">
                         {recording.title}
                       </h3>
-                      {getProviderBadge(recording.provider)}
-                      {getStatusBadge(recording.status)}
+                      {recording.booking?.title && (
+                        <span className="text-sm text-zinc-400 truncate">
+                          • {recording.booking.title}
+                        </span>
+                      )}
                     </div>
 
                     {/* Row 2: Duration, Size, Date */}
@@ -436,7 +431,7 @@ export default function RecordingsTab({ roleOverride, companyId }: RecordingsTab
         <UploadRecordingDrawer
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          onSuccess={loadRecordings}
+          onSuccess={() => mutate()}
           companyId={companyId}
         />
       )}
