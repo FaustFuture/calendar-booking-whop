@@ -107,6 +107,7 @@ export async function GET(request: Request) {
       // We'll send notifications to all admins in the company via companyTeamId
       // The notification service's sendNotificationToAdmins handles this
 
+      
       // Send 15-minute notification
       if (isIn15MinWindow && !booking.notification_15min_sent) {
         try {
