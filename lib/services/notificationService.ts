@@ -75,7 +75,7 @@ export class NotificationService {
       }
 
       // Use SDK method - type assertion needed as TypeScript types may not be up to date
-      await (whopsdk as any).notifications.sendPushNotification(notificationPayload)
+      await whopSdk_server.notifications.sendPushNotification(notificationPayload)
 
       console.log(`✅ Notification sent to admins in company ${companyId}:`, { title, content })
     } catch (error) {
