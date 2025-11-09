@@ -34,6 +34,14 @@ export async function GET(request: NextRequest) {
     // Get authorization URL
     const authUrl = zoomService.getAuthorizationUrl(state)
 
+    // Log for debugging (remove sensitive data in production)
+    console.log('Zoom OAuth URL generated:', {
+      hasClientId: !!process.env.NEXT_PUBLIC_ZOOM_CLIENT_ID,
+      redirectUri: process.env.ZOOM_REDIRECT_URI,
+      urlLength: authUrl.length,
+      // Don't log full URL with state in production
+    })
+
     return NextResponse.json({
       authUrl,
       state,
