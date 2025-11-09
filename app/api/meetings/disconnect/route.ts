@@ -33,8 +33,8 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient()
 
-    if (!provider || (provider !== 'google' && provider !== 'zoom')) {
-      return NextResponse.json({ error: 'Invalid provider' }, { status: 400 })
+    if (!provider || provider !== 'zoom') {
+      return NextResponse.json({ error: 'Invalid provider. Only Zoom is supported.' }, { status: 400 })
     }
 
     // Disconnect provider
