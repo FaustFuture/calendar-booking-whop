@@ -1,12 +1,11 @@
 /**
  * Meeting Service Facade
- * Unified interface for Google Meet and Zoom meeting creation
+ * Unified interface for Zoom meeting creation
  * Handles OAuth token management and database integration
  */
 
 import { createClient } from '@/lib/supabase/server'
 import { OAuthProvider } from '@/lib/types/database'
-import { googleMeetService } from './googleMeetService'
 import { zoomService } from './zoomService'
 import { MeetingDetails, MeetingResult, MeetingServiceError } from './types'
 
@@ -97,13 +96,8 @@ export class MeetingService {
     try {
       let refreshResult
 
-      if (connection.provider === 'google') {
-        refreshResult = await googleMeetService.refreshAccessToken(
-          connection.refresh_token
-        )
-      } else {
-        refreshResult = await zoomService.refreshAccessToken(connection.refresh_token)
-      }
+      // Only Zoom uses refresh tokens (Server-to-Server doesn't use this path)
+      refreshResult = await zoomService.refreshAccessToken(connection.refresh_token)
 
       // Update database with new tokens
       const newExpiresAt = new Date(
@@ -137,24 +131,12 @@ export class MeetingService {
     details: MeetingDetails
   ): Promise<MeetingResult> {
     try {
-      // Get OAuth connection
-      const connection = await this.getOAuthConnection(userId, provider)
+      let accessToken: string
 
-      // Ensure token is valid
-      const accessToken = await this.ensureValidToken(connection)
-
-      // Update last used timestamp
-      await this.updateOAuthConnection(connection.id, {
-        last_used_at: new Date().toISOString(),
-      })
-
-      // Create meeting using appropriate service
-      let result: MeetingResult
-
-      if (provider === 'google') {
-        result = await googleMeetService.createMeeting(accessToken, details)
-      } else if (provider === 'zoom') {
-        result = await zoomService.createMeeting(accessToken, details)
+      if (provider === 'zoom') {
+        // Server-to-Server OAuth: Generate token on-demand (no user connection needed)
+        const tokens = await zoomService.generateAccessToken()
+        accessToken = tokens.access_token
       } else {
         throw new MeetingServiceError(
           `Unsupported provider: ${provider}`,
@@ -162,6 +144,9 @@ export class MeetingService {
           'UNSUPPORTED_PROVIDER'
         )
       }
+
+      // Create meeting using Zoom service
+      const result = await zoomService.createMeeting(accessToken, details)
 
       return result
     } catch (error) {
@@ -184,18 +169,16 @@ export class MeetingService {
     provider: OAuthProvider
   ): Promise<boolean> {
     try {
-      const supabase = await createClient()
+      // Zoom uses Server-to-Server OAuth - always available if configured
+      if (provider === 'zoom') {
+        const accountId = process.env.ZOOM_ACCOUNT_ID
+        const clientId = process.env.ZOOM_CLIENT_ID || process.env.NEXT_PUBLIC_ZOOM_CLIENT_ID
+        const clientSecret = process.env.ZOOM_CLIENT_SECRET
+        return !!(accountId && clientId && clientSecret)
+      }
 
-      const { data } = await supabase
-        .from('oauth_connections')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('provider', provider)
-        .eq('is_active', true)
-        .gt('expires_at', new Date().toISOString())
-        .single()
-
-      return !!data
+      // Only Zoom is supported
+      return false
     } catch {
       return false
     }
@@ -228,10 +211,8 @@ export class MeetingService {
     try {
       const connection = await this.getOAuthConnection(userId, provider)
 
-      // Revoke access with provider
-      if (provider === 'google') {
-        await googleMeetService.revokeAccess(connection.access_token)
-      } else if (provider === 'zoom') {
+      // Revoke access with provider (only Zoom supported)
+      if (provider === 'zoom') {
         await zoomService.revokeAccess(connection.access_token)
       }
 

@@ -58,7 +58,7 @@ export default function CreateSlotDrawer({
   const [description, setDescription] = useState('')
   const [duration, setDuration] = useState('30')
   const [customDuration, setCustomDuration] = useState('')
-  const [meetingType, setMeetingType] = useState<MeetingType>('google_meet')
+  const [meetingType, setMeetingType] = useState<MeetingType>('zoom')
   const [meetingValue, setMeetingValue] = useState('')
   const [connectedEmail, setConnectedEmail] = useState('')
   const [scheduleData, setScheduleData] = useState<SimplifiedScheduleData>({
@@ -98,7 +98,7 @@ export default function CreateSlotDrawer({
         }
 
         // Set meeting type
-        setMeetingType((editData.meeting_type as MeetingType) || 'google_meet')
+        setMeetingType((editData.meeting_type as MeetingType) || 'zoom')
         
         // Set meeting value (manual link or location) from meeting_config
         // Handle both parsed object and string JSON (for backwards compatibility)
@@ -233,7 +233,7 @@ export default function CreateSlotDrawer({
         duration_minutes: durationMinutes,
         meeting_type: meetingType,
         meeting_config: {
-          requiresGeneration: meetingType === 'google_meet' || meetingType === 'zoom',
+          requiresGeneration: meetingType === 'zoom',
           manualValue: meetingValue || null,
         },
       }
@@ -272,7 +272,7 @@ export default function CreateSlotDrawer({
     setDescription('')
     setDuration('30')
     setCustomDuration('')
-    setMeetingType('google_meet')
+    setMeetingType('zoom')
     setMeetingValue('')
     setScheduleData({
       days: {},
@@ -295,7 +295,7 @@ export default function CreateSlotDrawer({
         title !== editData.title ||
         description !== (editData.description || '') ||
         durationChanged ||
-        meetingType !== (editData.meeting_type || 'google_meet')
+        meetingType !== (editData.meeting_type || 'zoom')
 
       if (hasChanges) {
         const confirmed = await confirm.confirm({

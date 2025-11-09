@@ -316,8 +316,6 @@ function BookingDetailsDrawer({ booking, isOpen, onClose, isAdmin, companyId, re
   
   function getMeetingTypeDisplay(meetingType?: string) {
     switch (meetingType) {
-      case 'google_meet':
-        return { icon: Video, label: 'Google Meet', color: 'text-blue-400' }
       case 'zoom':
         return { icon: Video, label: 'Zoom', color: 'text-blue-600' }
       case 'manual_link':
@@ -367,10 +365,10 @@ function BookingDetailsDrawer({ booking, isOpen, onClose, isAdmin, companyId, re
   }
 
   function getProviderBadge(provider: RecordingProvider) {
-    const badges = {
+    const badges: Record<RecordingProvider, { label: string; color: string }> = {
       zoom: { label: 'Zoom', color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
-      google: { label: 'Google Meet', color: 'bg-green-500/10 text-green-400 border-green-500/20' },
       manual: { label: 'Manual', color: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20' },
+      google: { label: 'Google Meet', color: 'bg-green-500/10 text-green-400 border-green-500/20' }, // Legacy support
     }
     const badge = badges[provider]
     return (

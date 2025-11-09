@@ -6,7 +6,7 @@ import { requireWhopAuth, syncWhopUserToSupabase } from '@/lib/auth/whop'
 
 // Helper function to map meeting_type to OAuth provider
 function getOAuthProvider(meetingType: string): OAuthProvider {
-  if (meetingType === 'google_meet') return 'google'
+  // Only Zoom is supported now
   if (meetingType === 'zoom') return 'zoom'
   throw new Error(`Invalid meeting type: ${meetingType}`)
 }
@@ -195,7 +195,7 @@ export async function POST(request: Request) {
     // Check if meeting generation is required
     if (
       meetingData &&
-      (meetingData.meeting_type === 'google_meet' || meetingData.meeting_type === 'zoom') &&
+      meetingData.meeting_type === 'zoom' &&
       meetingData.meeting_config?.requiresGeneration
     ) {
       console.log('🚀 Starting meeting link generation...')

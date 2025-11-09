@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Video, Link as LinkIcon, MapPin, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
 import { InlineTextSkeleton } from './ListItemSkeleton'
 
-export type MeetingType = 'google_meet' | 'zoom' | 'manual_link' | 'location'
+export type MeetingType = 'zoom' | 'manual_link' | 'location'
 
 interface ConditionalSelectProps {
   value: MeetingType
@@ -15,13 +15,11 @@ interface ConditionalSelectProps {
 }
 
 interface ConnectionStatus {
-  google: boolean
   zoom: boolean
   loading: boolean
 }
 
 const meetingOptions = [
-  { value: 'google_meet' as MeetingType, label: 'Google Meet', icon: Video },
   { value: 'zoom' as MeetingType, label: 'Zoom', icon: Video },
   { value: 'manual_link' as MeetingType, label: 'Manual Link', icon: LinkIcon },
   { value: 'location' as MeetingType, label: 'Physical Location', icon: MapPin },
@@ -35,11 +33,10 @@ export default function ConditionalSelect({
   companyId,
 }: ConditionalSelectProps) {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
-    google: false,
     zoom: false,
     loading: true,
   })
-  const [connecting, setConnecting] = useState<'google' | 'zoom' | null>(null)
+  const [connecting, setConnecting] = useState<'zoom' | null>(null)
 
   const showUrlInput = value === 'manual_link'
   const showLocationInput = value === 'location'
@@ -70,26 +67,22 @@ export default function ConditionalSelect({
     try {
       setConnectionStatus((prev) => ({ ...prev, loading: true }))
 
-      const [googleRes, zoomRes] = await Promise.all([
-        fetch(`/api/meetings/generate?provider=google&companyId=${companyId}`),
-        fetch(`/api/meetings/generate?provider=zoom&companyId=${companyId}`),
-      ])
-
-      const googleData = await googleRes.json()
-      const zoomData = await zoomRes.json()
+      // Zoom uses Server-to-Server OAuth - check if configured
+      const checkRes = await fetch(`/api/meetings/check?companyId=${companyId}`)
+      const checkData = await checkRes.json()
+      const zoomConfigured = checkData.connections?.zoom?.configured || false
 
       setConnectionStatus({
-        google: googleData.connected || false,
-        zoom: zoomData.connected || false,
+        zoom: zoomConfigured, // Server-to-Server is always available if configured
         loading: false,
       })
     } catch (error) {
       console.error('Failed to check connection status:', error)
-      setConnectionStatus({ google: false, zoom: false, loading: false })
+      setConnectionStatus({ zoom: false, loading: false })
     }
   }
 
-  async function handleConnect(provider: 'google' | 'zoom') {
+  async function handleConnect(provider: 'zoom') {
     try {
       setConnecting(provider)
 
@@ -189,52 +182,7 @@ export default function ConditionalSelect({
         </div>
       )}
 
-      {/* OAuth Connection Status - Google Meet */}
-      {value === 'google_meet' && (
-        <div className="animate-fade-in space-y-2">
-          {connectionStatus.loading ? (
-            <InlineTextSkeleton width="w-48" />
-          ) : connectionStatus.google ? (
-            <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-              <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span className="text-sm text-green-700 dark:text-green-400 font-medium">
-                Google Account Connected
-              </span>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
-                <span className="text-sm text-amber-700 dark:text-amber-400">
-                  Connect Google to generate meeting links
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleConnect('google')}
-                disabled={connecting === 'google'}
-                className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {connecting === 'google' ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Connecting...</span>
-                  </>
-                ) : (
-                  'Connect Google Account'
-                )}
-              </button>
-            </div>
-          )}
-          {connectionStatus.google && (
-            <p className="text-xs text-zinc-500">
-              Meeting links will be generated automatically for each booking
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* OAuth Connection Status - Zoom */}
+      {/* OAuth Connection Status - Zoom (Server-to-Server) */}
       {value === 'zoom' && (
         <div className="animate-fade-in space-y-2">
           {connectionStatus.loading ? (
@@ -243,37 +191,20 @@ export default function ConditionalSelect({
             <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
               <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
               <span className="text-sm text-green-700 dark:text-green-400 font-medium">
-                Zoom Account Connected
+                Zoom Server-to-Server OAuth Configured
               </span>
             </div>
           ) : (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
-                <span className="text-sm text-amber-700 dark:text-amber-400">
-                  Connect Zoom to generate meeting links
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleConnect('zoom')}
-                disabled={connecting === 'zoom'}
-                className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {connecting === 'zoom' ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Connecting...</span>
-                  </>
-                ) : (
-                  'Connect Zoom Account'
-                )}
-              </button>
+            <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+              <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+              <span className="text-sm text-amber-700 dark:text-amber-400">
+                Zoom Server-to-Server OAuth not configured. Set ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, and ZOOM_CLIENT_SECRET environment variables.
+              </span>
             </div>
           )}
           {connectionStatus.zoom && (
             <p className="text-xs text-zinc-500">
-              Meeting links will be generated automatically for each booking
+              Meeting links will be generated automatically using Server-to-Server OAuth
             </p>
           )}
         </div>

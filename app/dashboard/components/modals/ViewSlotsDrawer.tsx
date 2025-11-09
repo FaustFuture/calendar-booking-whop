@@ -326,8 +326,6 @@ export default function ViewSlotsDrawer({
 
   function getMeetingTypeDisplay(meetingType?: string) {
     switch (meetingType) {
-      case 'google_meet':
-        return { icon: Video, label: 'Google Meet', color: 'text-blue-400' }
       case 'zoom':
         return { icon: Video, label: 'Zoom', color: 'text-blue-600' }
       case 'manual_link':

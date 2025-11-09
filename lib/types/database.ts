@@ -2,9 +2,9 @@ export type UserRole = 'admin' | 'member'
 
 export type BookingStatus = 'upcoming' | 'completed' | 'cancelled'
 
-export type MeetingType = 'google_meet' | 'zoom' | 'manual_link' | 'location'
+export type MeetingType = 'zoom' | 'manual_link' | 'location'
 
-export type OAuthProvider = 'google' | 'zoom'
+export type OAuthProvider = 'zoom'
 
 export type RecordingProvider = 'google' | 'zoom' | 'manual'
 
@@ -57,6 +57,8 @@ export interface Booking {
   guest_email?: string
   booking_start_time?: string
   booking_end_time?: string
+  notification_15min_sent?: boolean
+  notification_2min_sent?: boolean
   created_at: string
   updated_at: string
 }

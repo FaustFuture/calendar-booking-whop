@@ -1,7 +1,7 @@
 /**
  * Meeting Link Generation Endpoint
  * POST /api/meetings/generate
- * Generates a meeting link (Google Meet or Zoom) for a booking
+ * Generates a meeting link (Zoom) for a booking
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     const whopUser = await requireWhopAuth(body.companyId, true)
 
     // Sync user to Supabase
-    await syncWhopUserToSupabase(whopUser)
+    // await syncWhopUserToSupabase(whopUser)
 
     const supabase = await createClient()
 
@@ -58,25 +58,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate provider
-    if (body.provider !== 'google' && body.provider !== 'zoom') {
-      return NextResponse.json({ error: 'Invalid provider' }, { status: 400 })
+    if (body.provider !== 'zoom') {
+      return NextResponse.json({ error: 'Invalid provider. Only Zoom is supported.' }, { status: 400 })
     }
 
-    // Check if user has active connection
-    const hasConnection = await meetingService.hasActiveConnection(
-      whopUser.userId,
-      body.provider
-    )
-
-    if (!hasConnection) {
-      return NextResponse.json(
-        {
-          error: 'No active connection',
-          message: `Please connect your ${body.provider === 'google' ? 'Google' : 'Zoom'} account first`,
-        },
-        { status: 403 }
-      )
-    }
+    // Zoom uses Server-to-Server OAuth - no user connection check needed
 
     // Generate meeting link
     const result = await meetingService.generateMeetingLink(whopUser.userId, body.provider, {
@@ -142,11 +128,13 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient()
     const provider = request.nextUrl.searchParams.get('provider') as OAuthProvider
 
-    if (!provider || (provider !== 'google' && provider !== 'zoom')) {
-      return NextResponse.json({ error: 'Invalid provider' }, { status: 400 })
+    if (!provider || provider !== 'zoom') {
+      return NextResponse.json({ error: 'Invalid provider. Only Zoom is supported.' }, { status: 400 })
     }
 
     const hasConnection = await meetingService.hasActiveConnection(whopUser.userId, provider)
+
+    console.log('hasConnection', hasConnection)
 
     return NextResponse.json({
       provider,

@@ -116,10 +116,10 @@ export default function RecordingsTab({ roleOverride, companyId }: RecordingsTab
   }
 
   function getProviderBadge(provider: RecordingProvider) {
-    const badges = {
+    const badges: Record<RecordingProvider, { label: string; color: string }> = {
       zoom: { label: 'Zoom', color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
-      google: { label: 'Google Meet', color: 'bg-green-500/10 text-green-400 border-green-500/20' },
       manual: { label: 'Manual', color: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20' },
+      google: { label: 'Google Meet', color: 'bg-green-500/10 text-green-400 border-green-500/20' }, // Legacy support
     }
     const badge = badges[provider]
     return (
@@ -212,7 +212,6 @@ export default function RecordingsTab({ roleOverride, companyId }: RecordingsTab
             <SelectContent>
               <SelectItem value="all">All Providers</SelectItem>
               <SelectItem value="zoom">Zoom</SelectItem>
-              <SelectItem value="google">Google Meet</SelectItem>
               <SelectItem value="manual">Manual</SelectItem>
             </SelectContent>
           </Select>

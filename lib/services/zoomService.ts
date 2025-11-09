@@ -11,86 +11,95 @@ import {
   MeetingServiceError,
 } from './types'
 
-const ZOOM_OAUTH_URL = 'https://zoom.us/oauth/authorize'
 const ZOOM_TOKEN_URL = 'https://zoom.us/oauth/token'
 const ZOOM_API_BASE = 'https://api.zoom.us/v2'
 
 export class ZoomService {
+  private accountId: string
   private clientId: string
   private clientSecret: string
-  private redirectUri: string
 
   constructor() {
-    this.clientId = process.env.NEXT_PUBLIC_ZOOM_CLIENT_ID || ''
+    // Server-to-Server OAuth requires Account ID, Client ID, and Client Secret
+    this.accountId = process.env.ZOOM_ACCOUNT_ID || ''
+    this.clientId = process.env.ZOOM_CLIENT_ID || process.env.NEXT_PUBLIC_ZOOM_CLIENT_ID || ''
     this.clientSecret = process.env.ZOOM_CLIENT_SECRET || ''
-    this.redirectUri = process.env.ZOOM_REDIRECT_URI || ''
 
-    if (!this.clientId || !this.clientSecret || !this.redirectUri) {
-      console.warn('Zoom configuration incomplete. Check environment variables.')
+    if (!this.accountId || !this.clientId || !this.clientSecret) {
+      console.warn('Zoom Server-to-Server OAuth configuration incomplete. Check environment variables.')
+      console.warn('Required: ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET')
     }
   }
 
   /**
-   * Generate OAuth authorization URL
+   * Generate Server-to-Server OAuth access token
+   * This doesn't require user interaction - uses account credentials directly
    */
-  getAuthorizationUrl(state: string): string {
-    if (!this.clientId || !this.redirectUri) {
+  async generateAccessToken(): Promise<OAuthTokens> {
+    if (!this.accountId || !this.clientId || !this.clientSecret) {
       throw new Error(
-        'Zoom OAuth is not configured. Please set NEXT_PUBLIC_ZOOM_CLIENT_ID and ZOOM_REDIRECT_URI in your .env.local file.'
+        'Zoom Server-to-Server OAuth is not configured. Please set ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, and ZOOM_CLIENT_SECRET in your environment variables.'
       )
     }
 
-    // Zoom requires explicit scopes to be requested
-    // Note: Zoom uses the format resource:action:subresource
-    const scopes = [
-      'meeting:write:meeting',  // Create a meeting for a user
-      'user:read:user',         // View a user
-    ]
+    try {
+      // Server-to-Server OAuth uses account credentials to get tokens
+      const credentials = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64')
 
-    const params = new URLSearchParams({
-      client_id: this.clientId,
-      redirect_uri: this.redirectUri,
-      response_type: 'code',
-      scope: scopes.join(' '), // Zoom expects space-separated scopes
-      state,
-    })
+      const response = await fetch(ZOOM_TOKEN_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: `Basic ${credentials}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          grant_type: 'account_credentials',
+          account_id: this.accountId,
+        }),
+      })
 
-    return `${ZOOM_OAUTH_URL}?${params.toString()}`
-  }
+      if (!response.ok) {
+        const error = await response.json()
+        throw new MeetingServiceError(
+          `Failed to generate Server-to-Server token: ${error.reason || error.error || response.statusText}`,
+          'zoom',
+          error.error || 'TOKEN_ERROR',
+          error
+        )
+      }
 
-  /**
-   * Generate OAuth authorization URL with recording scope
-   */
-  getAuthorizationUrlWithRecordings(state: string): string {
-    if (!this.clientId || !this.redirectUri) {
-      throw new Error(
-        'Zoom OAuth is not configured. Please set NEXT_PUBLIC_ZOOM_CLIENT_ID and ZOOM_REDIRECT_URI in your .env.local file.'
+      const tokens: OAuthTokens = await response.json()
+      
+      console.log('Zoom Server-to-Server token generated:', {
+        hasAccessToken: !!tokens.access_token,
+        expiresIn: tokens.expires_in,
+        scopes: tokens.scope,
+      })
+      
+      return tokens
+    } catch (error) {
+      if (error instanceof MeetingServiceError) throw error
+      throw new MeetingServiceError(
+        'Failed to generate Server-to-Server access token',
+        'zoom',
+        'TOKEN_GENERATION_ERROR',
+        error
       )
     }
-
-    // Request recording scope for accessing cloud recordings
-    // Note: Zoom uses the format resource:action:subresource
-    const scopes = [
-      'meeting:write:meeting',           // Create a meeting for a user
-      'user:read:user',                  // View a user
-      'cloud_recording:read:recording',  // View a recording
-    ]
-
-    const params = new URLSearchParams({
-      client_id: this.clientId,
-      redirect_uri: this.redirectUri,
-      response_type: 'code',
-      scope: scopes.join(' '), // Zoom expects space-separated scopes
-      state,
-    })
-
-    return `${ZOOM_OAUTH_URL}?${params.toString()}`
   }
 
   /**
-   * Exchange authorization code for access tokens
+   * Exchange authorization code for access tokens (DEPRECATED - Server-to-Server doesn't use this)
+   * Kept for backward compatibility but not used with Server-to-Server OAuth
+   * Note: This method is deprecated and will throw an error
    */
   async exchangeCodeForTokens(code: string): Promise<OAuthTokens> {
+    throw new Error(
+      'User OAuth is deprecated. Zoom now uses Server-to-Server OAuth. Use generateAccessToken() instead.'
+    )
+    
+    // Old implementation removed - Server-to-Server doesn't use authorization codes
+    /*
     try {
       // Zoom requires Basic Auth with client_id:client_secret
       const credentials = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString(
@@ -120,17 +129,7 @@ export class ZoomService {
         )
       }
 
-      const tokens: OAuthTokens = await response.json()
-      return tokens
-    } catch (error) {
-      if (error instanceof MeetingServiceError) throw error
-      throw new MeetingServiceError(
-        'Failed to exchange authorization code',
-        'zoom',
-        'EXCHANGE_ERROR',
-        error
-      )
-    }
+      */
   }
 
   /**
@@ -188,6 +187,7 @@ export class ZoomService {
     accessToken: string,
     details: MeetingDetails
   ): Promise<MeetingResult> {
+    console.log('createMeeting', accessToken, details)
     try {
       // Parse start time to create Zoom-compatible format
       const startTime = new Date(details.startTime)
@@ -219,13 +219,27 @@ export class ZoomService {
         },
       }
 
-      const response = await fetch(`${ZOOM_API_BASE}/users/me/meetings`, {
+      const apiUrl = `${ZOOM_API_BASE}/users/me/meetings`
+      console.log('Zoom API call - createMeeting:', {
+        url: apiUrl,
+        method: 'POST',
+        hasAccessToken: !!accessToken,
+        meetingTitle: details.title,
+      })
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(meetingRequest),
+      })
+
+      console.log('Zoom API response - createMeeting:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
       })
 
       if (!response.ok) {
@@ -268,17 +282,39 @@ export class ZoomService {
     name: string
   }> {
     try {
-      const response = await fetch(`${ZOOM_API_BASE}/users/me`, {
+      const apiUrl = `${ZOOM_API_BASE}/users/me`
+      console.log('Zoom API call - getUserInfo:', {
+        url: apiUrl,
+        method: 'GET',
+        hasAccessToken: !!accessToken,
+        tokenLength: accessToken?.length,
+      })
+
+      const response = await fetch(apiUrl, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
         },
       })
 
+      console.log('Zoom API response - getUserInfo:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+      })
+
       if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}))
+        console.error('Zoom getUserInfo error:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorBody,
+        })
         throw new MeetingServiceError(
-          'Failed to get user info from Zoom',
+          `Failed to get user info from Zoom: ${errorBody.message || response.statusText}`,
           'zoom',
-          'USER_INFO_ERROR'
+          'USER_INFO_ERROR',
+          errorBody
         )
       }
 
