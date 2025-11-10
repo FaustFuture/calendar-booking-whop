@@ -145,7 +145,7 @@ export async function GET(request: Request) {
               `Meeting Reminder: ${booking.title}`,
               `Your meeting starts in 15 minutes at ${new Date(booking.booking_start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`,
               `/bookings/${booking.id}`,
-              true // isMention for immediate push
+              false // Match test button behavior
             )
           }
 
@@ -155,7 +155,7 @@ export async function GET(request: Request) {
             `Meeting Reminder: ${booking.title}`,
             `A meeting starts in 15 minutes at ${new Date(booking.booking_start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`,
             `/bookings/${booking.id}`,
-            true // isMention for immediate push
+            false // Match test button behavior
           )
 
           await notificationService.markNotificationSent(booking.id, '15min')
@@ -177,7 +177,7 @@ export async function GET(request: Request) {
               `Meeting Starting Soon: ${booking.title}`,
               `Your meeting starts in 2 minutes!`,
               `/bookings/${booking.id}`,
-              true // isMention for immediate push
+              false // Match test button behavior
             )
           }
 
@@ -187,7 +187,7 @@ export async function GET(request: Request) {
             `Meeting Starting Soon: ${booking.title}`,
             `A meeting starts in 2 minutes!`,
             `/bookings/${booking.id}`,
-            true // isMention for immediate push
+            false // Match test button behavior
           )
 
           await notificationService.markNotificationSent(booking.id, '2min')
