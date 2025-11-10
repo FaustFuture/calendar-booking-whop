@@ -124,11 +124,23 @@ export interface AvailabilityPattern {
 }
 
 // Extended types with relationships
+export interface BookingAttachment {
+  id: string
+  booking_id: string
+  file_name: string
+  file_path: string
+  file_size: number
+  mime_type?: string
+  uploaded_by?: string // Whop user ID (user_xxx format)
+  created_at: string
+}
+
 export interface BookingWithRelations extends Booking {
   member?: User
   slot?: AvailabilitySlot
   pattern?: AvailabilityPattern
   recordings?: Recording[]
+  attachments?: BookingAttachment[]
 }
 
 export interface AvailabilitySlotWithRelations extends AvailabilitySlot {

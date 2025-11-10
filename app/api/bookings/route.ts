@@ -40,7 +40,8 @@ export async function GET(request: Request) {
         *,
         member:member_id(id, name, email),
         slot:slot_id(start_time, end_time, title, description, meeting_type),
-        pattern:pattern_id(id, title, description, meeting_type, duration_minutes, price)
+        pattern:pattern_id(id, title, description, meeting_type, duration_minutes, price),
+        attachments:booking_attachments(id, file_name, file_path, file_size, mime_type, created_at)
       `)
       .eq('company_id', companyId) // Filter by company_id first
       .order('created_at', { ascending: false })

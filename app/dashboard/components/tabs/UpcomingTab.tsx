@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import useSWR from 'swr'
-import { Plus, Calendar, User as UserIcon, ExternalLink, Copy, Check, ChevronDown, ChevronUp, Video, Link as LinkIcon, MapPin, Clock, Trash2, CheckCircle } from 'lucide-react'
+import { Plus, Calendar, User as UserIcon, ExternalLink, Copy, Check, ChevronDown, ChevronUp, Video, Link as LinkIcon, MapPin, Clock, Trash2, CheckCircle, File } from 'lucide-react'
 import { BookingWithRelations } from '@/lib/types/database'
 import { format } from 'date-fns'
 import CreateBookingDrawer from '../modals/CreateBookingDrawer'
@@ -613,6 +613,50 @@ function BookingDetailsDrawer({ booking, isOpen, onClose, isAdmin, companyId, on
               <h3 className="text-sm font-medium text-zinc-400">Description</h3>
               <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700/50">
                 <p className="text-zinc-300 whitespace-pre-wrap">{booking.description}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Notes */}
+          {booking.notes && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium text-zinc-400">Notes</h3>
+              <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700/50">
+                <p className="text-zinc-300 whitespace-pre-wrap">{booking.notes}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Attachments */}
+          {booking.attachments && booking.attachments.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium text-zinc-400">Attachments</h3>
+              <div className="space-y-2">
+                {booking.attachments.map((attachment) => (
+                  <div
+                    key={attachment.id}
+                    className="p-3 bg-zinc-800/50 rounded-lg border border-zinc-700/50 flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <File className="w-4 h-4 text-zinc-400 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-white truncate">{attachment.file_name}</p>
+                        <p className="text-xs text-zinc-400">
+                          {(attachment.file_size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
+                    </div>
+                    <a
+                      href={`/api/bookings/attachments/${attachment.id}/download?companyId=${companyId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm rounded transition-colors flex-shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Download
+                    </a>
+                  </div>
+                ))}
               </div>
             </div>
           )}
