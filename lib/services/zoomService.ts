@@ -36,15 +36,39 @@ export class ZoomService {
    * This doesn't require user interaction - uses account credentials directly
    */
   async generateAccessToken(): Promise<OAuthTokens> {
-    if (!this.accountId || !this.clientId || !this.clientSecret) {
+    // Validate configuration with detailed error messages
+    const missingVars: string[] = []
+    if (!this.accountId) missingVars.push('ZOOM_ACCOUNT_ID')
+    if (!this.clientId) missingVars.push('ZOOM_CLIENT_ID')
+    if (!this.clientSecret) missingVars.push('ZOOM_CLIENT_SECRET')
+
+    if (missingVars.length > 0) {
       throw new Error(
-        'Zoom Server-to-Server OAuth is not configured. Please set ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, and ZOOM_CLIENT_SECRET in your environment variables.'
+        `Zoom Server-to-Server OAuth is not configured. Missing environment variables: ${missingVars.join(', ')}. ` +
+        `Please set these in your Vercel project settings or environment configuration.`
+      )
+    }
+
+    // Validate that values are not just whitespace
+    if (this.accountId.trim() === '' || this.clientId.trim() === '' || this.clientSecret.trim() === '') {
+      throw new Error(
+        'Zoom Server-to-Server OAuth environment variables are set but empty. ' +
+        'Please check ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, and ZOOM_CLIENT_SECRET in your environment configuration.'
       )
     }
 
     try {
       // Server-to-Server OAuth uses account credentials to get tokens
       const credentials = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64')
+
+      console.log('🔐 Attempting to generate Zoom Server-to-Server token...', {
+        hasAccountId: !!this.accountId,
+        hasClientId: !!this.clientId,
+        hasClientSecret: !!this.clientSecret,
+        accountIdLength: this.accountId.length,
+        clientIdLength: this.clientId.length,
+        clientSecretLength: this.clientSecret.length,
+      })
 
       const response = await fetch(ZOOM_TOKEN_URL, {
         method: 'POST',
@@ -59,12 +83,34 @@ export class ZoomService {
       })
 
       if (!response.ok) {
-        const error = await response.json()
+        let errorData: any
+        try {
+          errorData = await response.json()
+        } catch {
+          errorData = { error: response.statusText, status: response.status }
+        }
+
+        console.error('❌ Zoom token generation failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+          accountId: this.accountId.substring(0, 4) + '...', // Log partial for debugging
+          clientId: this.clientId.substring(0, 4) + '...', // Log partial for debugging
+        })
+
+        // Provide specific guidance based on error
+        let errorMessage = errorData.reason || errorData.error || response.statusText
+        if (errorData.error === 'invalid_client' || errorMessage.includes('Invalid client')) {
+          errorMessage += '. Please verify that ZOOM_CLIENT_ID and ZOOM_CLIENT_SECRET are correct in your Zoom app settings and match your environment variables.'
+        } else if (errorData.error === 'invalid_grant' || errorMessage.includes('account')) {
+          errorMessage += '. Please verify that ZOOM_ACCOUNT_ID is correct and matches your Zoom account.'
+        }
+
         throw new MeetingServiceError(
-          `Failed to generate Server-to-Server token: ${error.reason || error.error || response.statusText}`,
+          `Failed to generate Server-to-Server token: ${errorMessage}`,
           'zoom',
-          error.error || 'TOKEN_ERROR',
-          error
+          errorData.error || 'TOKEN_ERROR',
+          errorData
         )
       }
 
@@ -213,9 +259,11 @@ export class ZoomService {
           use_pmi: false,
           approval_type: 0, // Automatically approve
           audio: 'both', // Both telephony and VoIP
-          auto_recording: details.enableRecording ? 'cloud' : 'none', // Auto-record to cloud if enabled
+          auto_recording: details.enableRecording !== false ? 'cloud' : 'none', // Auto-record to cloud (enabled by default)
           waiting_room: false, // Disable waiting room so participants can join directly
           meeting_authentication: false,
+          // Allow recording to start automatically even if host hasn't joined
+          // This works with join_before_host: true and auto_recording: 'cloud'
         },
       }
 
@@ -225,6 +273,9 @@ export class ZoomService {
         method: 'POST',
         hasAccessToken: !!accessToken,
         meetingTitle: details.title,
+        enableRecording: details.enableRecording,
+        autoRecording: meetingRequest.settings.auto_recording,
+        joinBeforeHost: meetingRequest.settings.join_before_host,
       })
 
       const response = await fetch(apiUrl, {

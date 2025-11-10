@@ -300,6 +300,7 @@ export async function POST(request: Request) {
               startTime: startTime,
               endTime: endTime,
               attendees: attendeeEmails,
+              enableRecording: meetingData.meeting_config?.enableRecording ?? true, // Enable recording by default
             }
           )
 
