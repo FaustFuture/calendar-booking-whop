@@ -3,6 +3,14 @@
     {
       "path": "/api/notifications/check",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/bookings/auto-complete",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/recordings/fetch-delayed",
+      "schedule": "* * * * *"
     }
   ]
 }

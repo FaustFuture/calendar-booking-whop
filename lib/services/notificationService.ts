@@ -9,7 +9,7 @@ import { createClient } from '@/lib/supabase/server'
 export class NotificationService {
   /**
    * Send a notification to a specific user
-   * Uses the new Whop REST API: https://docs.whop.com/api-reference/notifications/create-notification
+   * Uses Whop REST API: https://docs.whop.com/api-reference/notifications/create-notification
    */
   async sendNotificationToUser(
     userId: string,
@@ -25,25 +25,21 @@ export class NotificationService {
         throw new Error('WHOP_API_KEY is not configured')
       }
 
-      // Use new Whop REST API format
+      // Use Whop REST API format
       // Reference: https://docs.whop.com/api-reference/notifications/create-notification
       const notificationPayload: any = {
+        company_id: companyId,
+        user_ids: [userId],
         title,
         content,
-        experienceId: companyId, // Use experienceId (companyId) for the experience/company
-        userIds: [userId], // Target specific user
       }
       
       if (restPath) {
-        notificationPayload.restPath = restPath
-      }
-      
-      if (isMention) {
-        notificationPayload.isMention = isMention
+        notificationPayload.rest_path = restPath
       }
 
-      // Use REST API directly
-      const response = await fetch('https://api.whop.com/api/v2/notifications', {
+      // Use REST API directly - v1 endpoint
+      const response = await fetch('https://api.whop.com/api/v1/notifications', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -66,7 +62,8 @@ export class NotificationService {
 
   /**
    * Send a notification to company admins
-   * Uses the new Whop REST API: https://docs.whop.com/api-reference/notifications/create-notification
+   * Uses Whop REST API: https://docs.whop.com/api-reference/notifications/create-notification
+   * Note: To send to all admins, we need to fetch admin user IDs or use company_id without user_ids
    */
   async sendNotificationToAdmins(
     companyId: string,
@@ -81,25 +78,21 @@ export class NotificationService {
         throw new Error('WHOP_API_KEY is not configured')
       }
 
-      // Use new Whop REST API format
+      // Use Whop REST API format
       // Reference: https://docs.whop.com/api-reference/notifications/create-notification
-      // Sending to experienceId (companyId) sends to all members in that experience/company
+      // Sending with company_id only (without user_ids) sends to all members in that company
       const notificationPayload: any = {
+        company_id: companyId,
         title,
         content,
-        experienceId: companyId, // Use experienceId instead of companyTeamId
       }
       
       if (restPath) {
-        notificationPayload.restPath = restPath
-      }
-      
-      if (isMention) {
-        notificationPayload.isMention = isMention
+        notificationPayload.rest_path = restPath
       }
 
-      // Use REST API directly
-      const response = await fetch('https://api.whop.com/api/v2/notifications', {
+      // Use REST API directly - v1 endpoint
+      const response = await fetch('https://api.whop.com/api/v1/notifications', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,

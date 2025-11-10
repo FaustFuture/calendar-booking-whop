@@ -92,6 +92,9 @@ export async function PATCH(
     // Extract companyId from body (used for auth only, not a DB column)
     const { companyId: _, ...updateData } = body
 
+    // Check if status is being changed to 'completed'
+    const isCompleting = updateData.status === 'completed' && booking.status !== 'completed'
+
     const { data, error } = await supabase
       .from('bookings')
       .update(updateData)
@@ -102,6 +105,27 @@ export async function PATCH(
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+
+    // Phase 1: Fetch recordings immediately when user manually finishes meeting
+    if (isCompleting) {
+      try {
+        const { recordingFetchService } = await import('@/lib/services/recordingFetchService')
+        
+        // Mark immediate fetch attempt
+        await supabase
+          .from('bookings')
+          .update({ recording_fetch_immediate: true })
+          .eq('id', id)
+
+        // Fetch recordings in background (don't wait for it)
+        recordingFetchService.fetchRecordingsForBooking(id, companyId).catch((error) => {
+          console.error(`Failed to fetch recordings for booking ${id} (immediate):`, error)
+        })
+      } catch (error) {
+        console.error(`Error triggering immediate recording fetch for booking ${id}:`, error)
+        // Don't fail the request if recording fetch fails
+      }
     }
 
     return NextResponse.json({ data })
