@@ -20,11 +20,31 @@ import { notificationService } from '@/lib/services/notificationService'
 
 export async function GET(request: Request) {
   try {
+    // Log cron job execution
+    console.log('⏰ Cron job triggered:', {
+      timestamp: new Date().toISOString(),
+      hasWhopApiKey: !!process.env.WHOP_API_KEY,
+      whopApiKeyLength: process.env.WHOP_API_KEY?.length || 0,
+      userAgent: request.headers.get('user-agent'),
+      cronSecret: request.headers.get('authorization') ? 'present' : 'missing',
+    })
+
     // Optional: Add authentication/authorization check for cron job
     // For Vercel Cron, you can use a secret header
+    // NOTE: Vercel cron jobs automatically send a special header, so we only check if CRON_SECRET is set
     const authHeader = request.headers.get('authorization')
     if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+      console.warn('⚠️ Cron job blocked by CRON_SECRET check')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Verify WHOP_API_KEY is available
+    if (!process.env.WHOP_API_KEY) {
+      console.error('❌ WHOP_API_KEY is not set in cron job environment!')
+      return NextResponse.json(
+        { error: 'WHOP_API_KEY not configured' },
+        { status: 500 }
+      )
     }
 
     const supabase = await createClient()
@@ -80,12 +100,15 @@ export async function GET(request: Request) {
     }
 
     if (!upcomingBookings || upcomingBookings.length === 0) {
+      console.log('ℹ️ No upcoming bookings found for notifications')
       return NextResponse.json({
         message: 'No upcoming bookings found',
         checked: 0,
         sent: { '15min': 0, '2min': 0 },
       })
     }
+
+    console.log(`📋 Found ${upcomingBookings.length} upcoming bookings to check for notifications`)
 
     let sent15Min = 0
     let sent2Min = 0

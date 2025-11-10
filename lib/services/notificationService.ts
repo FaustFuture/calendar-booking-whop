@@ -39,6 +39,13 @@ export class NotificationService {
       }
 
       // Use REST API directly - v1 endpoint
+      console.log('📤 Sending notification to user:', {
+        endpoint: 'https://api.whop.com/api/v1/notifications',
+        payload: notificationPayload,
+        hasApiKey: !!apiKey,
+        apiKeyLength: apiKey?.length,
+      })
+
       const response = await fetch('https://api.whop.com/api/v1/notifications', {
         method: 'POST',
         headers: {
@@ -48,12 +55,37 @@ export class NotificationService {
         body: JSON.stringify(notificationPayload),
       })
 
+      const responseText = await response.text()
+      console.log('📥 Notification API response:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        body: responseText,
+      })
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
-        throw new Error(`Failed to send notification: ${errorData.message || response.statusText}`)
+        let errorData: any = {}
+        try {
+          errorData = JSON.parse(responseText)
+        } catch {
+          errorData = { message: responseText || response.statusText }
+        }
+        console.error('❌ Notification API error:', errorData)
+        throw new Error(`Failed to send notification: ${errorData.message || errorData.error || response.statusText}`)
       }
 
-      console.log(`✅ Notification sent to user ${userId}:`, { title, content })
+      let responseData: any = {}
+      try {
+        responseData = JSON.parse(responseText)
+      } catch {
+        responseData = { message: 'Success' }
+      }
+
+      console.log(`✅ Notification sent to user ${userId}:`, { 
+        title, 
+        content,
+        response: responseData,
+      })
     } catch (error) {
       console.error(`❌ Failed to send notification to user ${userId}:`, error)
       throw error
@@ -75,8 +107,16 @@ export class NotificationService {
     try {
       const apiKey = process.env.WHOP_API_KEY
       if (!apiKey) {
+        console.error('❌ WHOP_API_KEY is not configured in notification service (admins)')
         throw new Error('WHOP_API_KEY is not configured')
       }
+      
+      // Log API key status (without exposing the actual key)
+      console.log('🔑 API Key check (admins):', {
+        hasApiKey: !!apiKey,
+        apiKeyLength: apiKey.length,
+        apiKeyPrefix: apiKey.substring(0, 10) + '...',
+      })
 
       // Use Whop REST API format
       // Reference: https://docs.whop.com/api-reference/notifications/create-notification
@@ -92,6 +132,13 @@ export class NotificationService {
       }
 
       // Use REST API directly - v1 endpoint
+      console.log('📤 Sending notification to admins:', {
+        endpoint: 'https://api.whop.com/api/v1/notifications',
+        payload: notificationPayload,
+        hasApiKey: !!apiKey,
+        apiKeyLength: apiKey?.length,
+      })
+
       const response = await fetch('https://api.whop.com/api/v1/notifications', {
         method: 'POST',
         headers: {
@@ -101,12 +148,37 @@ export class NotificationService {
         body: JSON.stringify(notificationPayload),
       })
 
+      const responseText = await response.text()
+      console.log('📥 Notification API response:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        body: responseText,
+      })
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
-        throw new Error(`Failed to send notification: ${errorData.message || response.statusText}`)
+        let errorData: any = {}
+        try {
+          errorData = JSON.parse(responseText)
+        } catch {
+          errorData = { message: responseText || response.statusText }
+        }
+        console.error('❌ Notification API error:', errorData)
+        throw new Error(`Failed to send notification: ${errorData.message || errorData.error || response.statusText}`)
       }
 
-      console.log(`✅ Notification sent to admins in company ${companyId}:`, { title, content })
+      let responseData: any = {}
+      try {
+        responseData = JSON.parse(responseText)
+      } catch {
+        responseData = { message: 'Success' }
+      }
+
+      console.log(`✅ Notification sent to admins in company ${companyId}:`, { 
+        title, 
+        content,
+        response: responseData,
+      })
     } catch (error) {
       console.error(`❌ Failed to send notification to admins:`, error)
       throw error
