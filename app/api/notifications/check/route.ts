@@ -20,22 +20,40 @@ import { notificationService } from '@/lib/services/notificationService'
 
 export async function GET(request: Request) {
   try {
-    // Log cron job execution
-    console.log('⏰ Cron job triggered:', {
+    const { searchParams } = new URL(request.url)
+    const companyId = searchParams.get('companyId')
+    const userAgent = request.headers.get('user-agent') || ''
+    const isCronJob = userAgent.includes('vercel-cron')
+    
+    // Log execution context
+    console.log('⏰ Notification check triggered:', {
       timestamp: new Date().toISOString(),
+      isCronJob,
+      hasCompanyId: !!companyId,
       hasWhopApiKey: !!process.env.WHOP_API_KEY,
       whopApiKeyLength: process.env.WHOP_API_KEY?.length || 0,
-      userAgent: request.headers.get('user-agent'),
-      cronSecret: request.headers.get('authorization') ? 'present' : 'missing',
+      userAgent,
     })
 
-    // Optional: Add authentication/authorization check for cron job
-    // For Vercel Cron, you can use a secret header
-    // NOTE: Vercel cron jobs automatically send a special header, so we only check if CRON_SECRET is set
-    const authHeader = request.headers.get('authorization')
-    if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      console.warn('⚠️ Cron job blocked by CRON_SECRET check')
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // If called from client (with companyId), verify user authentication
+    if (companyId && !isCronJob) {
+      try {
+        const { requireWhopAuth } = await import('@/lib/auth/whop')
+        await requireWhopAuth(companyId, true)
+        console.log('✅ Client-side notification check authenticated')
+      } catch (authError) {
+        console.error('❌ Client-side auth failed:', authError)
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+    }
+
+    // For cron jobs, check CRON_SECRET if set
+    if (isCronJob) {
+      const authHeader = request.headers.get('authorization')
+      if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+        console.warn('⚠️ Cron job blocked by CRON_SECRET check')
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
     }
 
     // Verify WHOP_API_KEY is available
@@ -49,6 +67,31 @@ export async function GET(request: Request) {
 
     const supabase = await createClient()
     const now = new Date()
+
+    // If companyId provided, filter by company; otherwise check all companies
+    let query = supabase
+      .from('bookings')
+      .select(`
+        id,
+        title,
+        booking_start_time,
+        company_id,
+        member_id,
+        status,
+        meeting_url,
+        notification_15min_sent,
+        notification_2min_sent,
+        member:member_id(id, name, email),
+        pattern:pattern_id(company_id)
+      `)
+      .eq('status', 'upcoming')
+      .not('booking_start_time', 'is', null)
+      .or('notification_15min_sent.is.null,notification_15min_sent.eq.false,notification_2min_sent.is.null,notification_2min_sent.eq.false')
+
+    // Filter by company if provided (client-side calls)
+    if (companyId) {
+      query = query.eq('company_id', companyId)
+    }
 
     // Calculate time windows
     const fifteenMinutesFromNow = new Date(now.getTime() + 15 * 60 * 1000)
@@ -72,26 +115,8 @@ export async function GET(request: Request) {
       },
     })
 
-    // Fetch all upcoming bookings
-    // Only get bookings that haven't sent all notifications yet
-    const { data: upcomingBookings, error: fetchError } = await supabase
-      .from('bookings')
-      .select(`
-        id,
-        title,
-        booking_start_time,
-        company_id,
-        member_id,
-        status,
-        meeting_url,
-        notification_15min_sent,
-        notification_2min_sent,
-        member:member_id(id, name, email),
-        pattern:pattern_id(company_id)
-      `)
-      .eq('status', 'upcoming')
-      .not('booking_start_time', 'is', null)
-      .or('notification_15min_sent.is.null,notification_15min_sent.eq.false,notification_2min_sent.is.null,notification_2min_sent.eq.false')
+    // Fetch upcoming bookings (already filtered above)
+    const { data: upcomingBookings, error: fetchError } = await query
       .order('booking_start_time', { ascending: true })
 
     if (fetchError) {
