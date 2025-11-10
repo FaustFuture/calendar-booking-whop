@@ -243,12 +243,30 @@ export class ZoomService {
       })
 
       if (!response.ok) {
-        const error = await response.json()
+        let errorData: any
+        try {
+          errorData = await response.json()
+        } catch {
+          // If response isn't JSON, use status text
+          errorData = { message: response.statusText, status: response.status }
+        }
+
+        console.error('❌ Zoom API error response:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+          meetingRequest: {
+            topic: meetingRequest.topic,
+            start_time: meetingRequest.start_time,
+            duration: meetingRequest.duration,
+          },
+        })
+
         throw new MeetingServiceError(
-          `Failed to create Zoom meeting: ${error.message || 'Unknown error'}`,
+          `Failed to create Zoom meeting: ${errorData.message || errorData.reason || 'Unknown error'} (Status: ${response.status})`,
           'zoom',
-          error.code?.toString(),
-          error
+          errorData.code?.toString() || errorData.error || response.status.toString(),
+          errorData
         )
       }
 

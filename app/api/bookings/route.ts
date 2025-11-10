@@ -199,86 +199,145 @@ export async function POST(request: Request) {
       meetingData.meeting_type === 'zoom' &&
       meetingData.meeting_config?.requiresGeneration
     ) {
-      console.log('🚀 Starting meeting link generation...')
-      try {
-        // Find an admin in the company for OAuth connection
-        if (!adminIdForMeeting) {
-          // First, try to use the authenticated user if they're an admin
-          if (whopUser && whopUser.role === 'admin') {
-            adminIdForMeeting = whopUser.userId
-            console.log('📋 Using authenticated admin user for meeting:', adminIdForMeeting)
-          } else {
-            // Find any admin in the company
-            const { data: adminUser } = await supabase
-              .from('users')
-              .select('id')
-              .eq('role', 'admin')
-              .limit(1)
-              .single()
+      console.log('🚀 Starting meeting link generation...', {
+        companyId,
+        meetingType: meetingData.meeting_type,
+        startTime,
+        endTime,
+      })
 
-            if (adminUser) {
-              adminIdForMeeting = adminUser.id
-              console.log('📋 Found admin in company for meeting:', adminIdForMeeting)
+      // Check if Zoom is configured before attempting generation
+      const zoomConfigured = !!(
+        process.env.ZOOM_ACCOUNT_ID &&
+        process.env.ZOOM_CLIENT_ID &&
+        process.env.ZOOM_CLIENT_SECRET
+      )
+
+      if (!zoomConfigured) {
+        console.error('❌ Zoom Server-to-Server OAuth not configured:', {
+          hasAccountId: !!process.env.ZOOM_ACCOUNT_ID,
+          hasClientId: !!process.env.ZOOM_CLIENT_ID,
+          hasClientSecret: !!process.env.ZOOM_CLIENT_SECRET,
+        })
+        // Continue without meeting URL - booking will be created but without link
+      } else {
+        try {
+          // Find an admin in the company for OAuth connection
+          if (!adminIdForMeeting) {
+            // First, try to use the authenticated user if they're an admin
+            if (whopUser && whopUser.role === 'admin') {
+              adminIdForMeeting = whopUser.userId
+              console.log('📋 Using authenticated admin user for meeting:', adminIdForMeeting)
             } else {
-              console.warn('⚠️ No admin found in company for meeting generation')
+              // Find any admin user (Note: users table doesn't have company_id, 
+              // but we use company_id from bookings/patterns for multi-tenancy)
+              const { data: adminUser, error: adminError } = await supabase
+                .from('users')
+                .select('id')
+                .eq('role', 'admin')
+                .limit(1)
+                .single()
+
+              if (adminError) {
+                console.error('❌ Error finding admin user:', adminError)
+              }
+
+              if (adminUser) {
+                adminIdForMeeting = adminUser.id
+                console.log('📋 Found admin in company for meeting:', adminIdForMeeting)
+              } else {
+                console.warn('⚠️ No admin found in company for meeting generation', {
+                  companyId,
+                  error: adminError?.message,
+                })
+              }
             }
           }
-        }
 
-        if (!adminIdForMeeting) {
-          throw new Error('No admin found in company for meeting generation')
-        }
+          if (!adminIdForMeeting) {
+            throw new Error('No admin found in company for meeting generation')
+          }
 
-        // Get attendee emails
-        const attendeeEmails: string[] = []
+          // Get attendee emails
+          const attendeeEmails: string[] = []
 
-        // Add member email (if registered user)
-        if (body.member_id) {
-          const { data: memberData } = await supabase
+          // Add member email (if registered user)
+          if (body.member_id) {
+            const { data: memberData } = await supabase
+              .from('users')
+              .select('email')
+              .eq('id', body.member_id)
+              .single()
+            if (memberData?.email) attendeeEmails.push(memberData.email)
+          } else if (body.guest_email) {
+            // Add guest email
+            attendeeEmails.push(body.guest_email)
+          }
+
+          // Add admin email
+          const { data: adminData } = await supabase
             .from('users')
             .select('email')
-            .eq('id', body.member_id)
+            .eq('id', adminIdForMeeting)
             .single()
-          if (memberData?.email) attendeeEmails.push(memberData.email)
-        } else if (body.guest_email) {
-          // Add guest email
-          attendeeEmails.push(body.guest_email)
-        }
+          if (adminData?.email) attendeeEmails.push(adminData.email)
 
-        // Add admin email
-        const { data: adminData } = await supabase
-          .from('users')
-          .select('email')
-          .eq('id', adminIdForMeeting)
-          .single()
-        if (adminData?.email) attendeeEmails.push(adminData.email)
+          // Generate meeting link
+          const provider = getOAuthProvider(meetingData.meeting_type)
+          console.log('🔗 Mapping meeting type to provider:', {
+            meetingType: meetingData.meeting_type,
+            provider,
+            adminId: adminIdForMeeting,
+            attendeeCount: attendeeEmails.length,
+          })
 
-        // Generate meeting link
-        const provider = getOAuthProvider(meetingData.meeting_type)
-        console.log('🔗 Mapping meeting type to provider:', {
-          meetingType: meetingData.meeting_type,
-          provider,
-        })
+          const meetingResult = await meetingService.generateMeetingLink(
+            adminIdForMeeting, // Use admin's OAuth connection
+            provider,
+            {
+              title: body.title || meetingData.title || 'Meeting',
+              description: body.description || meetingData.description,
+              startTime: startTime,
+              endTime: endTime,
+              attendees: attendeeEmails,
+            }
+          )
 
-        const meetingResult = await meetingService.generateMeetingLink(
-          adminIdForMeeting, // Use admin's OAuth connection
-          provider,
-          {
-            title: body.title || meetingData.title || 'Meeting',
-            description: body.description || meetingData.description,
-            startTime: startTime,
-            endTime: endTime,
-            attendees: attendeeEmails,
+          meetingUrl = meetingResult.meetingUrl
+          console.log('✅ Meeting link generated successfully:', {
+            meetingUrl,
+            meetingId: meetingResult.meetingId,
+            provider: meetingResult.provider,
+          })
+        } catch (error) {
+          // Enhanced error logging for production debugging
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          const errorStack = error instanceof Error ? error.stack : undefined
+          const errorDetails = error instanceof Error ? { ...error } : error
+
+          console.error('❌ Failed to generate meeting link:', {
+            error: errorMessage,
+            stack: errorStack,
+            details: errorDetails,
+            companyId,
+            meetingType: meetingData.meeting_type,
+            adminId: adminIdForMeeting,
+            startTime,
+            endTime,
+          })
+
+          // Log specific error types
+          if (errorMessage.includes('not configured')) {
+            console.error('❌ Zoom configuration issue - check environment variables')
+          } else if (errorMessage.includes('token')) {
+            console.error('❌ Zoom OAuth token generation failed')
+          } else if (errorMessage.includes('meeting')) {
+            console.error('❌ Zoom meeting creation failed')
           }
-        )
 
-        meetingUrl = meetingResult.meetingUrl
-        console.log('✅ Meeting link generated successfully:', meetingUrl)
-      } catch (error) {
-        console.error('❌ Failed to generate meeting link:', error)
-        console.error('Error details:', JSON.stringify(error, null, 2))
-        // Continue with booking creation but without meeting URL
-        // This prevents booking creation from failing if meeting generation fails
+          // Continue with booking creation but without meeting URL
+          // This prevents booking creation from failing if meeting generation fails
+        }
       }
     } else if (meetingData?.meeting_type === 'manual_link') {
       // Use manual link from config
