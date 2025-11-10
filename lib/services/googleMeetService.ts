@@ -181,6 +181,9 @@ export class GoogleMeetService {
 
   /**
    * Create a Google Meet meeting via Google Calendar API
+   * Note: Google Meet meetings created this way are automatically open
+   * - Anyone with the link can join without the host needing to start the meeting
+   * - The meeting is accessible at the scheduled start time
    */
   async createMeeting(
     accessToken: string,
@@ -188,6 +191,7 @@ export class GoogleMeetService {
   ): Promise<MeetingResult> {
     try {
       // Format event for Google Calendar API
+      // Google Meet meetings are automatically open - no additional settings needed
       const event = {
         summary: details.title,
         description: details.description || '',

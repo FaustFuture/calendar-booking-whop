@@ -5,6 +5,7 @@ import { WhopUserProvider } from "@/lib/context/WhopUserContext";
 import { ToastProvider } from "@/lib/context/ToastContext";
 import { ConfirmDialogProvider } from "@/lib/context/ConfirmDialogContext";
 import DashboardTabs from "@/app/dashboard/components/DashboardTabs";
+import NotificationPoller from "@/app/dashboard/components/NotificationPoller";
 
 export default async function DashboardPage({ params }: { params: Promise<{ companyId: string }> }) {
   const { companyId } = await params;
@@ -40,6 +41,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ comp
     <ToastProvider>
       <ConfirmDialogProvider>
         <WhopUserProvider user={userContextData}>
+          <NotificationPoller companyId={companyId} />
           <div className="min-h-screen bg-background">
             <DashboardTabs companyId={companyId} />
           </div>

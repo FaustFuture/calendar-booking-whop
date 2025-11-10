@@ -207,14 +207,14 @@ export class ZoomService {
         settings: {
           host_video: true,
           participant_video: true,
-          join_before_host: false,
+          join_before_host: true, // Allow participants to join before host
           mute_upon_entry: true,
           watermark: false,
           use_pmi: false,
           approval_type: 0, // Automatically approve
           audio: 'both', // Both telephony and VoIP
           auto_recording: details.enableRecording ? 'cloud' : 'none', // Auto-record to cloud if enabled
-          waiting_room: true,
+          waiting_room: false, // Disable waiting room so participants can join directly
           meeting_authentication: false,
         },
       }

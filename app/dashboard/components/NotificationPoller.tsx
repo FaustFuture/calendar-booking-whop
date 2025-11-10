@@ -21,12 +21,12 @@ export default function NotificationPoller({ companyId }: NotificationPollerProp
   useEffect(() => {
     if (!user || !companyId) return
 
-    // Poll every 30 seconds for upcoming meetings
+    // Poll every 5 seconds for upcoming meetings
     const checkForNotifications = async () => {
       try {
-        // Only check if at least 30 seconds have passed since last check
+        // Only check if at least 5 seconds have passed since last check
         const now = Date.now()
-        if (now - lastCheckRef.current < 30000) return
+        if (now - lastCheckRef.current < 5000) return
         lastCheckRef.current = now
 
         // Call the notification check endpoint with user authentication
@@ -46,13 +46,13 @@ export default function NotificationPoller({ companyId }: NotificationPollerProp
       }
     }
 
-    // Initial check after 5 seconds
+    // Initial check after 2 seconds
     const initialTimeout = setTimeout(() => {
       checkForNotifications()
-    }, 5000)
+    }, 2000)
 
-    // Then check every 30 seconds
-    intervalRef.current = setInterval(checkForNotifications, 30000)
+    // Then check every 5 seconds
+    intervalRef.current = setInterval(checkForNotifications, 5000)
 
     return () => {
       clearTimeout(initialTimeout)

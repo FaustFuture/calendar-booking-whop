@@ -12,7 +12,6 @@ import { AvailabilityPattern } from '@/lib/types/database'
 import { updatePastBookingsStatus } from '@/lib/utils/bookings'
 import { useWhopUser } from '@/lib/context/WhopUserContext'
 import { useToast } from '@/lib/context/ToastContext'
-import NotificationPoller from './NotificationPoller'
 
 export type TabType = 'availability' | 'upcoming' | 'past' | 'recordings'
 export type UserRole = 'admin' | 'member'
@@ -112,9 +111,6 @@ export default function DashboardTabs({ companyId }: DashboardTabsProps) {
 
   return (
     <div className="w-full space-y-6 p-6">
-      {/* Notification Poller - Runs in authenticated user context */}
-      <NotificationPoller companyId={companyId} />
-
       {/* Admin Controls - Only show for admins */}
       {isAdmin && (
         <div className="flex items-center justify-end gap-3">
