@@ -339,34 +339,27 @@ export default function UpcomingTab({ roleOverride, companyId }: UpcomingTabProp
 
                     {/* Actions */}
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {booking.meeting_url && (
-                        <>
-                          <a
-                            href={booking.meeting_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-semibold transition-colors inline-flex items-center gap-2"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                            Join
-                          </a>
-                          {/* <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              copyMeetingLink(booking.id, booking.meeting_url!)
-                            }}
-                            className="p-2 hover:bg-zinc-700 rounded-lg transition-colors group/copy"
-                            title="Copy meeting link"
-                          >
-                            {copiedId === booking.id ? (
-                              <Check className="w-4 h-4 text-emerald-400" />
-                            ) : (
-                              <Copy className="w-4 h-4 text-zinc-400 group-hover/copy:text-zinc-200 transition-colors" />
-                            )}
-                          </button> */}
-                        </>
-                      )}
+                      {/* Show Join button if meeting_url exists OR if meeting type requires a URL */}
+                      {booking.meeting_url ? (
+                        <a
+                          href={booking.meeting_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-semibold transition-colors inline-flex items-center gap-2"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          Join
+                        </a>
+                      ) : meetingType && ['zoom', 'google_meet'].includes(meetingType) ? (
+                        <span
+                          className="px-4 py-2 bg-zinc-700/50 text-zinc-400 rounded-lg text-sm font-semibold inline-flex items-center gap-2"
+                          title="Meeting link is missing. Please contact support or regenerate the booking."
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          Join (No Link)
+                        </span>
+                      ) : null}
                       {isAdmin && (
                         <button
                           onClick={(e) => {
