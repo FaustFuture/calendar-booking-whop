@@ -1,16 +1,15 @@
 /**
  * Notification Service
- * Handles sending push notifications via Whop SDK
+ * Handles sending push notifications via Whop REST API
  * Reference: https://docs.whop.com/api-reference/notifications/create-notification
  */
 
 import { createClient } from '@/lib/supabase/server'
-import { whopSdk_server } from '@/lib/whop-sdk'
 
 export class NotificationService {
   /**
    * Send a notification to a specific user
-   * Uses the new Whop API format: https://docs.whop.com/api-reference/notifications/create-notification
+   * Uses the new Whop REST API: https://docs.whop.com/api-reference/notifications/create-notification
    */
   async sendNotificationToUser(
     userId: string,
@@ -21,7 +20,12 @@ export class NotificationService {
     isMention: boolean = false
   ): Promise<void> {
     try {
-      // Use new Whop API format
+      const apiKey = process.env.WHOP_API_KEY
+      if (!apiKey) {
+        throw new Error('WHOP_API_KEY is not configured')
+      }
+
+      // Use new Whop REST API format
       // Reference: https://docs.whop.com/api-reference/notifications/create-notification
       const notificationPayload: any = {
         title,
@@ -38,8 +42,20 @@ export class NotificationService {
         notificationPayload.isMention = isMention
       }
 
-      // Use SDK method - type assertion needed as TypeScript types may not be up to date
-      await (whopSdk_server as any).notifications.sendPushNotification(notificationPayload)
+      // Use REST API directly
+      const response = await fetch('https://api.whop.com/api/v2/notifications', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(notificationPayload),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
+        throw new Error(`Failed to send notification: ${errorData.message || response.statusText}`)
+      }
 
       console.log(`✅ Notification sent to user ${userId}:`, { title, content })
     } catch (error) {
@@ -50,7 +66,7 @@ export class NotificationService {
 
   /**
    * Send a notification to company admins
-   * Uses the new Whop API format: https://docs.whop.com/api-reference/notifications/create-notification
+   * Uses the new Whop REST API: https://docs.whop.com/api-reference/notifications/create-notification
    */
   async sendNotificationToAdmins(
     companyId: string,
@@ -60,7 +76,12 @@ export class NotificationService {
     isMention: boolean = false
   ): Promise<void> {
     try {
-      // Use new Whop API format
+      const apiKey = process.env.WHOP_API_KEY
+      if (!apiKey) {
+        throw new Error('WHOP_API_KEY is not configured')
+      }
+
+      // Use new Whop REST API format
       // Reference: https://docs.whop.com/api-reference/notifications/create-notification
       // Sending to experienceId (companyId) sends to all members in that experience/company
       const notificationPayload: any = {
@@ -77,8 +98,20 @@ export class NotificationService {
         notificationPayload.isMention = isMention
       }
 
-      // Use SDK method - type assertion needed as TypeScript types may not be up to date
-      await (whopSdk_server as any).notifications.sendPushNotification(notificationPayload)
+      // Use REST API directly
+      const response = await fetch('https://api.whop.com/api/v2/notifications', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(notificationPayload),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
+        throw new Error(`Failed to send notification: ${errorData.message || response.statusText}`)
+      }
 
       console.log(`✅ Notification sent to admins in company ${companyId}:`, { title, content })
     } catch (error) {
