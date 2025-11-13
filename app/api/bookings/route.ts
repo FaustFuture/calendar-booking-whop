@@ -6,8 +6,8 @@ import { requireWhopAuth, syncWhopUserToSupabase } from '@/lib/auth/whop'
 
 // Helper function to map meeting_type to OAuth provider
 function getOAuthProvider(meetingType: string): OAuthProvider {
-  // Only Zoom is supported now
   if (meetingType === 'zoom') return 'zoom'
+  if (meetingType === 'google_meet') return 'google'
   throw new Error(`Invalid meeting type: ${meetingType}`)
 }
 
@@ -196,7 +196,7 @@ export async function POST(request: Request) {
     // Check if meeting generation is required
     if (
       meetingData &&
-      meetingData.meeting_type === 'zoom' &&
+      (meetingData.meeting_type === 'zoom' || meetingData.meeting_type === 'google_meet') &&
       meetingData.meeting_config?.requiresGeneration
     ) {
       console.log('🚀 Starting meeting link generation...', {
@@ -206,20 +206,30 @@ export async function POST(request: Request) {
         endTime,
       })
 
-      // Check if Zoom is configured before attempting generation
-      const zoomConfigured = !!(
-        process.env.ZOOM_ACCOUNT_ID &&
-        process.env.ZOOM_CLIENT_ID &&
-        process.env.ZOOM_CLIENT_SECRET
-      )
+      // Check if provider is configured before attempting generation
+      let providerConfigured = false
+      if (meetingData.meeting_type === 'zoom') {
+        // Zoom uses Server-to-Server OAuth
+        providerConfigured = !!(
+          process.env.ZOOM_ACCOUNT_ID &&
+          process.env.ZOOM_CLIENT_ID &&
+          process.env.ZOOM_CLIENT_SECRET
+        )
+        if (!providerConfigured) {
+          console.error('❌ Zoom Server-to-Server OAuth not configured:', {
+            hasAccountId: !!process.env.ZOOM_ACCOUNT_ID,
+            hasClientId: !!process.env.ZOOM_CLIENT_ID,
+            hasClientSecret: !!process.env.ZOOM_CLIENT_SECRET,
+          })
+        }
+      } else if (meetingData.meeting_type === 'google_meet') {
+        // Google Meet uses user OAuth connections - will check later when we have adminId
+        providerConfigured = true // Will verify connection exists when we have the admin user
+      }
 
-      if (!zoomConfigured) {
-        console.error('❌ Zoom Server-to-Server OAuth not configured:', {
-          hasAccountId: !!process.env.ZOOM_ACCOUNT_ID,
-          hasClientId: !!process.env.ZOOM_CLIENT_ID,
-          hasClientSecret: !!process.env.ZOOM_CLIENT_SECRET,
-        })
+      if (!providerConfigured) {
         // Continue without meeting URL - booking will be created but without link
+        console.warn('⚠️ Provider not configured, skipping meeting generation')
       } else {
         try {
           // Find an admin in the company for OAuth connection
@@ -258,6 +268,22 @@ export async function POST(request: Request) {
             throw new Error('No admin found in company for meeting generation')
           }
 
+          // For Google Meet, verify the admin has an active OAuth connection
+          if (meetingData.meeting_type === 'google_meet') {
+            console.log('🔍 Checking Google Meet OAuth connection for admin:', adminIdForMeeting)
+            const hasConnection = await meetingService.hasActiveConnection(adminIdForMeeting, 'google')
+            console.log('🔍 Google Meet connection status:', hasConnection)
+            if (!hasConnection) {
+              console.error('❌ Google Meet OAuth connection not found for admin:', {
+                adminId: adminIdForMeeting,
+                companyId,
+                message: 'Admin needs to connect Google account in Settings → Integrations'
+              })
+              throw new Error('Google Meet not connected. Please connect your Google account in Settings → Integrations.')
+            }
+            console.log('✅ Google Meet OAuth connection verified')
+          }
+
           // Get attendee emails
           const attendeeEmails: string[] = []
 
@@ -288,6 +314,15 @@ export async function POST(request: Request) {
             meetingType: meetingData.meeting_type,
             provider,
             adminId: adminIdForMeeting,
+            attendeeCount: attendeeEmails.length,
+          })
+
+          console.log('🚀 Calling meetingService.generateMeetingLink with:', {
+            userId: adminIdForMeeting,
+            provider,
+            title: body.title || meetingData.title || 'Meeting',
+            startTime,
+            endTime,
             attendeeCount: attendeeEmails.length,
           })
 
@@ -329,11 +364,15 @@ export async function POST(request: Request) {
 
           // Log specific error types
           if (errorMessage.includes('not configured')) {
-            console.error('❌ Zoom configuration issue - check environment variables')
+            console.error('❌ Provider configuration issue - check environment variables')
+          } else if (errorMessage.includes('not connected') || errorMessage.includes('OAuth connection')) {
+            console.error('❌ OAuth connection issue - user needs to connect their account')
           } else if (errorMessage.includes('token')) {
-            console.error('❌ Zoom OAuth token generation failed')
+            console.error('❌ OAuth token issue - token may be expired or invalid')
           } else if (errorMessage.includes('meeting')) {
-            console.error('❌ Zoom meeting creation failed')
+            console.error('❌ Meeting creation failed - check API permissions and scopes')
+          } else if (errorMessage.includes('Google')) {
+            console.error('❌ Google Meet specific error - check Google Calendar API permissions')
           }
 
           // Continue with booking creation but without meeting URL

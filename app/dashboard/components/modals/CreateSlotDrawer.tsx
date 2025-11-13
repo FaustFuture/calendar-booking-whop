@@ -233,7 +233,7 @@ export default function CreateSlotDrawer({
         duration_minutes: durationMinutes,
         meeting_type: meetingType,
         meeting_config: {
-          requiresGeneration: meetingType === 'zoom',
+          requiresGeneration: meetingType === 'zoom' || meetingType === 'google_meet',
           manualValue: meetingValue || null,
         },
       }

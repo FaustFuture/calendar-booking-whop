@@ -2,9 +2,9 @@ export type UserRole = 'admin' | 'member'
 
 export type BookingStatus = 'upcoming' | 'completed' | 'cancelled'
 
-export type MeetingType = 'zoom' | 'manual_link' | 'location'
+export type MeetingType = 'zoom' | 'google_meet' | 'manual_link' | 'location'
 
-export type OAuthProvider = 'zoom'
+export type OAuthProvider = 'zoom' | 'google'
 
 export type RecordingProvider = 'google' | 'zoom' | 'manual'
 

@@ -58,11 +58,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate provider
-    if (body.provider !== 'zoom') {
-      return NextResponse.json({ error: 'Invalid provider. Only Zoom is supported.' }, { status: 400 })
+    if (body.provider !== 'zoom' && body.provider !== 'google') {
+      return NextResponse.json({ error: 'Invalid provider. Only Zoom and Google Meet are supported.' }, { status: 400 })
     }
 
     // Zoom uses Server-to-Server OAuth - no user connection check needed
+    // Google Meet uses user OAuth connections - check if connected
 
     // Generate meeting link
     const result = await meetingService.generateMeetingLink(whopUser.userId, body.provider, {
@@ -128,8 +129,8 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient()
     const provider = request.nextUrl.searchParams.get('provider') as OAuthProvider
 
-    if (!provider || provider !== 'zoom') {
-      return NextResponse.json({ error: 'Invalid provider. Only Zoom is supported.' }, { status: 400 })
+    if (!provider || (provider !== 'zoom' && provider !== 'google')) {
+      return NextResponse.json({ error: 'Invalid provider. Only Zoom and Google Meet are supported.' }, { status: 400 })
     }
 
     const hasConnection = await meetingService.hasActiveConnection(whopUser.userId, provider)

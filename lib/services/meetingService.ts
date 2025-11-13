@@ -7,7 +7,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { OAuthProvider } from '@/lib/types/database'
 import { zoomService } from './zoomService'
-import { MeetingDetails, MeetingResult, MeetingServiceError } from './types'
+import { googleMeetService } from './googleMeetService'
+import { MeetingDetails, MeetingResult, MeetingServiceError, TokenRefreshResult } from './types'
 
 export class MeetingService {
   /**
@@ -96,8 +97,18 @@ export class MeetingService {
     try {
       let refreshResult
 
-      // Only Zoom uses refresh tokens (Server-to-Server doesn't use this path)
-      refreshResult = await zoomService.refreshAccessToken(connection.refresh_token)
+      // Refresh token based on provider
+      if (connection.provider === 'zoom') {
+        refreshResult = await zoomService.refreshAccessToken(connection.refresh_token)
+      } else if (connection.provider === 'google') {
+        refreshResult = await this.refreshGoogleToken(connection.refresh_token)
+      } else {
+        throw new MeetingServiceError(
+          'Unsupported provider for token refresh',
+          connection.provider,
+          'UNSUPPORTED_PROVIDER'
+        )
+      }
 
       // Update database with new tokens
       const newExpiresAt = new Date(
@@ -123,6 +134,13 @@ export class MeetingService {
   }
 
   /**
+   * Refresh Google OAuth token
+   */
+  private async refreshGoogleToken(refreshToken: string): Promise<TokenRefreshResult> {
+    return await googleMeetService.refreshAccessToken(refreshToken)
+  }
+
+  /**
    * Generate meeting link for a booking
    */
   async generateMeetingLink(
@@ -132,11 +150,24 @@ export class MeetingService {
   ): Promise<MeetingResult> {
     try {
       let accessToken: string
+      let result: MeetingResult
 
       if (provider === 'zoom') {
         // Server-to-Server OAuth: Generate token on-demand (no user connection needed)
         const tokens = await zoomService.generateAccessToken()
         accessToken = tokens.access_token
+        result = await zoomService.createMeeting(accessToken, details)
+      } else if (provider === 'google') {
+        // User OAuth: Get connection from database and ensure valid token
+        const connection = await this.getOAuthConnection(userId, provider)
+        accessToken = await this.ensureValidToken(connection)
+        
+        // Update last used timestamp
+        await this.updateOAuthConnection(connection.id, {
+          last_used_at: new Date().toISOString(),
+        })
+
+        result = await googleMeetService.createMeeting(accessToken, details)
       } else {
         throw new MeetingServiceError(
           `Unsupported provider: ${provider}`,
@@ -144,9 +175,6 @@ export class MeetingService {
           'UNSUPPORTED_PROVIDER'
         )
       }
-
-      // Create meeting using Zoom service
-      const result = await zoomService.createMeeting(accessToken, details)
 
       return result
     } catch (error) {
@@ -177,7 +205,19 @@ export class MeetingService {
         return !!(accountId && clientId && clientSecret)
       }
 
-      // Only Zoom is supported
+      // Google Meet uses user OAuth connections - check database
+      if (provider === 'google') {
+        const supabase = await createClient()
+        const { data } = await supabase
+          .from('oauth_connections')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('provider', 'google')
+          .eq('is_active', true)
+          .single()
+        return !!data
+      }
+
       return false
     } catch {
       return false
@@ -211,9 +251,11 @@ export class MeetingService {
     try {
       const connection = await this.getOAuthConnection(userId, provider)
 
-      // Revoke access with provider (only Zoom supported)
+      // Revoke access with provider
       if (provider === 'zoom') {
         await zoomService.revokeAccess(connection.access_token)
+      } else if (provider === 'google') {
+        await googleMeetService.revokeAccess(connection.access_token)
       }
 
       // Mark connection as inactive

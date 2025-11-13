@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Calendar, Clock, History, Video, Plus, Bell } from 'lucide-react'
+import { Calendar, Clock, History, Video, Plus } from 'lucide-react'
 import AvailabilityTab from './tabs/AvailabilityTab'
 import UpcomingTab from './tabs/UpcomingTab'
 import PastTab from './tabs/PastTab'
@@ -11,7 +11,6 @@ import RoleSwitcher from './RoleSwitcher'
 import { AvailabilityPattern } from '@/lib/types/database'
 import { updatePastBookingsStatus } from '@/lib/utils/bookings'
 import { useWhopUser } from '@/lib/context/WhopUserContext'
-import { useToast } from '@/lib/context/ToastContext'
 
 export type TabType = 'availability' | 'upcoming' | 'past' | 'recordings'
 export type UserRole = 'admin' | 'member'
@@ -35,13 +34,11 @@ interface DashboardTabsProps {
 
 export default function DashboardTabs({ companyId }: DashboardTabsProps) {
   const { user, isAdmin } = useWhopUser()
-  const { showSuccess, showError } = useToast()
   const [activeTab, setActiveTab] = useState<TabType>('availability')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const [editingPattern, setEditingPattern] = useState<AvailabilityPattern | null>(null)
   const [viewMode, setViewMode] = useState<UserRole>('admin') // Default to admin view for admins
-  const [isSendingTestNotification, setIsSendingTestNotification] = useState(false)
 
   // Handle tab change and update past bookings when viewing booking-related tabs
   function handleTabChange(tab: TabType) {
@@ -76,27 +73,6 @@ export default function DashboardTabs({ companyId }: DashboardTabsProps) {
     setActiveTab('upcoming')
   }
 
-  async function handleTestNotification() {
-    if (!user || !isAdmin) return
-
-    setIsSendingTestNotification(true)
-    try {
-      const response = await fetch(`/api/notifications/test?companyId=${companyId}&userId=${user.userId}`)
-      const data = await response.json()
-
-      if (response.ok && data.success) {
-        showSuccess('Test notification sent! Check your Whop notifications.')
-      } else {
-        showError(data.error || 'Failed to send test notification')
-      }
-    } catch (error) {
-      console.error('Error sending test notification:', error)
-      showError('Failed to send test notification. Please check the console for details.')
-    } finally {
-      setIsSendingTestNotification(false)
-    }
-  }
-
   // Early return if no user
   if (!user) {
     return (
@@ -114,15 +90,6 @@ export default function DashboardTabs({ companyId }: DashboardTabsProps) {
       {/* Admin Controls - Only show for admins */}
       {isAdmin && (
         <div className="flex items-center justify-end gap-3">
-          <button
-            onClick={handleTestNotification}
-            disabled={isSendingTestNotification}
-            className="px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 rounded-lg font-medium flex items-center gap-2 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Send a test notification to yourself"
-          >
-            <Bell className={`w-4 h-4 ${isSendingTestNotification ? 'animate-pulse' : ''}`} />
-            {isSendingTestNotification ? 'Sending...' : 'Test Notification'}
-          </button>
           <RoleSwitcher
             currentRole={viewMode}
             onRoleChange={setViewMode}

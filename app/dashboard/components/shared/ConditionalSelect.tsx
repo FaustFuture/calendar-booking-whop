@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Video, Link as LinkIcon, MapPin, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
+import { Video, Link as LinkIcon, MapPin, CheckCircle2, AlertCircle, Loader2, MessageCircle } from 'lucide-react'
 import { InlineTextSkeleton } from './ListItemSkeleton'
 
-export type MeetingType = 'zoom' | 'manual_link' | 'location'
+export type MeetingType = 'zoom' | 'google_meet' | 'manual_link' | 'location'
 
 interface ConditionalSelectProps {
   value: MeetingType
@@ -16,11 +16,13 @@ interface ConditionalSelectProps {
 
 interface ConnectionStatus {
   zoom: boolean
+  google: boolean
   loading: boolean
 }
 
 const meetingOptions = [
   { value: 'zoom' as MeetingType, label: 'Zoom', icon: Video },
+  { value: 'google_meet' as MeetingType, label: 'Google Meet', icon: MessageCircle },
   { value: 'manual_link' as MeetingType, label: 'Manual Link', icon: LinkIcon },
   { value: 'location' as MeetingType, label: 'Physical Location', icon: MapPin },
 ]
@@ -34,9 +36,10 @@ export default function ConditionalSelect({
 }: ConditionalSelectProps) {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
     zoom: false,
+    google: false,
     loading: true,
   })
-  const [connecting, setConnecting] = useState<'zoom' | null>(null)
+  const [connecting, setConnecting] = useState<'zoom' | 'google' | null>(null)
 
   const showUrlInput = value === 'manual_link'
   const showLocationInput = value === 'location'
@@ -67,22 +70,24 @@ export default function ConditionalSelect({
     try {
       setConnectionStatus((prev) => ({ ...prev, loading: true }))
 
-      // Zoom uses Server-to-Server OAuth - check if configured
+      // Check connection status for both Zoom and Google Meet
       const checkRes = await fetch(`/api/meetings/check?companyId=${companyId}`)
       const checkData = await checkRes.json()
       const zoomConfigured = checkData.connections?.zoom?.configured || false
+      const googleConfigured = checkData.connections?.google?.configured || false
 
       setConnectionStatus({
-        zoom: zoomConfigured, // Server-to-Server is always available if configured
+        zoom: zoomConfigured,
+        google: googleConfigured,
         loading: false,
       })
     } catch (error) {
       console.error('Failed to check connection status:', error)
-      setConnectionStatus({ zoom: false, loading: false })
+      setConnectionStatus({ zoom: false, google: false, loading: false })
     }
   }
 
-  async function handleConnect(provider: 'zoom') {
+  async function handleConnect(provider: 'zoom' | 'google') {
     try {
       setConnecting(provider)
 
@@ -191,20 +196,64 @@ export default function ConditionalSelect({
             <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
               <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
               <span className="text-sm text-green-700 dark:text-green-400 font-medium">
-                Zoom Server-to-Server OAuth Configured
+                Zoom Configured
               </span>
             </div>
           ) : (
             <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
               <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
               <span className="text-sm text-amber-700 dark:text-amber-400">
-                Zoom Server-to-Server OAuth not configured. Set ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, and ZOOM_CLIENT_SECRET environment variables.
+                Zoom not configured. Set ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, and ZOOM_CLIENT_SECRET environment variables.
               </span>
             </div>
           )}
           {connectionStatus.zoom && (
             <p className="text-xs text-zinc-500">
-              Meeting links will be generated automatically using Server-to-Server OAuth
+              Meeting links will be generated automatically
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* OAuth Connection Status - Google Meet */}
+      {value === 'google_meet' && (
+        <div className="animate-fade-in space-y-2">
+          {connectionStatus.loading ? (
+            <InlineTextSkeleton width="w-48" />
+          ) : connectionStatus.google ? (
+            <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+              <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+              <span className="text-sm text-green-700 dark:text-green-400 font-medium">
+                Google Meet Connected
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+              <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+              <div className="flex-1">
+                <span className="text-sm text-amber-700 dark:text-amber-400 block mb-2">
+                  Google Meet not connected. Connect your Google account to generate meeting links automatically.
+                </span>
+                <button
+                  onClick={() => handleConnect('google')}
+                  disabled={connecting === 'google'}
+                  className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-medium flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {connecting === 'google' ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Connecting...
+                    </>
+                  ) : (
+                    'Connect Google Account'
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+          {connectionStatus.google && (
+            <p className="text-xs text-zinc-500">
+              Meeting links will be generated automatically
             </p>
           )}
         </div>
