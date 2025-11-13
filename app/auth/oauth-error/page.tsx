@@ -12,7 +12,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   callback_failed: 'OAuth callback failed',
   access_denied: 'Access was denied',
   token_exchange_failed: 'Failed to exchange authorization code for tokens',
-  user_info_failed: 'Failed to retrieve user information from Zoom',
+  user_info_failed: 'Failed to retrieve user information from Google',
   user_not_found: 'User not found in database. Please ensure you are logged in.',
   invalid_user: 'User ID mismatch. Please try again.',
   authentication_failed: 'Authentication failed. Please try again.',

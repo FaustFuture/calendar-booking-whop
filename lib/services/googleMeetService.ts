@@ -97,6 +97,8 @@ export class GoogleMeetService {
    */
   async exchangeCodeForTokens(code: string): Promise<OAuthTokens> {
     try {
+      console.log('🔄 Exchanging code for tokens with redirect URI:', this.redirectUri)
+      
       const response = await fetch(GOOGLE_TOKEN_URL, {
         method: 'POST',
         headers: {

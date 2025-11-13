@@ -10,16 +10,25 @@ import { googleMeetService } from '@/lib/services/googleMeetService'
 
 export async function GET(request: NextRequest) {
   try {
+    console.log('📥 Google OAuth callback received')
     const searchParams = request.nextUrl.searchParams
     const code = searchParams.get('code')
     const state = searchParams.get('state')
     const error = searchParams.get('error')
+
+    console.log('📥 Callback parameters:', {
+      hasCode: !!code,
+      hasState: !!state,
+      hasError: !!error,
+      error: error || null,
+    })
 
     // Try to extract companyId from state for error redirects
     let companyId: string | undefined
     if (state) {
       const stateParts = state.split(':')
       companyId = stateParts[1]
+      console.log('📥 Extracted companyId from state:', companyId)
     }
 
     // Handle OAuth errors
@@ -55,21 +64,54 @@ export async function GET(request: NextRequest) {
     // Use userId directly (from Whop authentication)
 
     // Exchange code for tokens
-    const tokens = await googleMeetService.exchangeCodeForTokens(code)
+    console.log('🔄 Exchanging authorization code for tokens...')
+    let tokens
+    try {
+      tokens = await googleMeetService.exchangeCodeForTokens(code)
+      console.log('✅ Token exchange successful')
+    } catch (error) {
+      console.error('❌ Token exchange failed:', error)
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      return NextResponse.redirect(
+        new URL(
+          `/auth/oauth-error?error=token_exchange_failed&provider=google&companyId=${companyId}&message=${encodeURIComponent(errorMessage)}`,
+          request.url
+        )
+      )
+    }
 
     // Get user info from Google
-    const userInfo = await googleMeetService.getUserInfo(tokens.access_token)
+    console.log('🔄 Getting user info from Google...')
+    let userInfo
+    try {
+      userInfo = await googleMeetService.getUserInfo(tokens.access_token)
+      console.log('✅ User info retrieved:', { email: userInfo.email, id: userInfo.id })
+    } catch (error) {
+      console.error('❌ Failed to get user info:', error)
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      return NextResponse.redirect(
+        new URL(
+          `/auth/oauth-error?error=user_info_failed&provider=google&companyId=${companyId}&message=${encodeURIComponent(errorMessage)}`,
+          request.url
+        )
+      )
+    }
 
     // Calculate expiration time
     const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString()
 
     // Check if connection already exists
-    const { data: existingConnection } = await supabase
+    console.log('🔄 Checking for existing OAuth connection for user:', userId)
+    const { data: existingConnection, error: connectionCheckError } = await supabase
       .from('oauth_connections')
       .select('id')
       .eq('user_id', userId)
       .eq('provider', 'google')
-      .single()
+      .maybeSingle()
+
+    if (connectionCheckError && connectionCheckError.code !== 'PGRST116') {
+      console.error('❌ Error checking for existing connection:', connectionCheckError)
+    }
 
     if (existingConnection) {
       // Update existing connection
@@ -129,7 +171,16 @@ export async function GET(request: NextRequest) {
       new URL(`/auth/oauth-success?provider=google&companyId=${companyId}`, request.url)
     )
   } catch (error) {
-    console.error('Google OAuth callback error:', error)
+    console.error('❌ Google OAuth callback error:', error)
+    
+    // Log detailed error information
+    const errorDetails = {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      name: error instanceof Error ? error.name : undefined,
+    }
+    console.error('❌ Error details:', JSON.stringify(errorDetails, null, 2))
+    
     // Try to extract companyId from URL state parameter for error redirect
     const searchParams = request.nextUrl.searchParams
     const state = searchParams.get('state')
@@ -138,9 +189,11 @@ export async function GET(request: NextRequest) {
       const stateParts = state.split(':')
       companyId = stateParts[1]
     }
+    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
     const errorUrl = companyId
-      ? `/auth/oauth-error?error=${encodeURIComponent('callback_failed')}&provider=google&companyId=${companyId}`
-      : `/auth/oauth-error?error=${encodeURIComponent('callback_failed')}&provider=google`
+      ? `/auth/oauth-error?error=${encodeURIComponent('callback_failed')}&provider=google&companyId=${companyId}&message=${encodeURIComponent(errorMessage)}`
+      : `/auth/oauth-error?error=${encodeURIComponent('callback_failed')}&provider=google&message=${encodeURIComponent(errorMessage)}`
     return NextResponse.redirect(new URL(errorUrl, request.url))
   }
 }
