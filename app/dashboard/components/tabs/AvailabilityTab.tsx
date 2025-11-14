@@ -88,7 +88,6 @@ export default function AvailabilityTab({ roleOverride, companyId, hideHeader, o
   // Show error if fetch failed
   useEffect(() => {
     if (error) {
-      console.error('Error loading availability patterns:', error)
       showError('Failed to load availability patterns', error.message || 'Please try again.')
     }
   }, [error, showError])
@@ -121,7 +120,6 @@ export default function AvailabilityTab({ roleOverride, companyId, hideHeader, o
         showError('Delete Failed', errorData.error || 'Failed to delete the pattern.')
       }
     } catch (error) {
-      console.error('Error deleting pattern:', error)
       showError('Delete Failed', 'An error occurred while deleting the pattern.')
     }
   }

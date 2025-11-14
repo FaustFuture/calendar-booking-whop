@@ -15,6 +15,12 @@ const nextConfig: NextConfig = {
     // your project has ESLint errors.
     ignoreDuringBuilds: true,
   },
+  // Allow larger body sizes for file uploads (500MB for recordings)
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '500mb',
+    },
+  },
 };
 
 export default withWhopAppConfig(nextConfig);

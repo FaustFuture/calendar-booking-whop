@@ -82,7 +82,7 @@ export default function SegmentedControl({
             name={name ? `${name}_custom` : undefined}
             value={customValue}
             onChange={(e) => onCustomChange?.(e.target.value)}
-            className="input w-32"
+            className="input w-56"
             placeholder={customPlaceholder}
             min="0"
           />

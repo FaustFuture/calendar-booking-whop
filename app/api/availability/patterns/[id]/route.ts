@@ -134,7 +134,6 @@ export async function PUT(
       .single()
 
     if (updateError) {
-      console.error('Database error:', updateError)
       return NextResponse.json(
         { error: 'Failed to update availability pattern', details: updateError.message },
         { status: 500 }
@@ -147,7 +146,6 @@ export async function PUT(
       message: 'Availability pattern updated successfully',
     })
   } catch (error) {
-    console.error('Server error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -215,7 +213,6 @@ export async function DELETE(
       .eq('company_id', companyId)
 
     if (deleteError) {
-      console.error('Database error:', deleteError)
       return NextResponse.json(
         { error: 'Failed to delete availability pattern', details: deleteError.message },
         { status: 500 }
@@ -227,7 +224,6 @@ export async function DELETE(
       message: 'Availability pattern deleted successfully',
     })
   } catch (error) {
-    console.error('Server error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -29,12 +29,6 @@ export async function GET(request: Request) {
 
     const testUserId = userId || whopUser.userId
 
-    console.log('🧪 Testing notification:', {
-      companyId,
-      userId: testUserId,
-      authenticatedUser: whopUser.userId,
-    })
-
     // Test sending to specific user
     if (testUserId) {
       try {
@@ -51,7 +45,6 @@ export async function GET(request: Request) {
           message: `Test notification sent to user ${testUserId}`,
         })
       } catch (error) {
-        console.error('Test notification error:', error)
         return NextResponse.json(
           {
             success: false,
@@ -76,7 +69,6 @@ export async function GET(request: Request) {
         message: `Test notification sent to all admins in company ${companyId}`,
       })
     } catch (error) {
-      console.error('Test notification error:', error)
       return NextResponse.json(
         {
           success: false,
@@ -86,7 +78,6 @@ export async function GET(request: Request) {
       )
     }
   } catch (error) {
-    console.error('❌ Error in test notification:', error)
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : 'Internal server error',

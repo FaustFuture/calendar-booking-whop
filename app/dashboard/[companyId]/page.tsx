@@ -24,7 +24,6 @@ export default async function DashboardPage({ params }: { params: Promise<{ comp
   // try {
   //   await syncWhopUserToSupabase(whopUser);
   // } catch (error) {
-  //   console.error('Failed to sync user to database:', error);
   //   redirect('/auth/error?message=' + encodeURIComponent('Failed to sync user data. Please try refreshing the page.'));
   // }
 

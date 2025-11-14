@@ -17,7 +17,7 @@ export async function GET(request: Request) {
         const whopUser = await requireWhopAuth(companyId, true)
         authenticatedUserId = whopUser.userId
       } catch (error) {
-        console.error('Auth error in check endpoint:', error)
+        // Auth error in check endpoint
       }
     }
 
@@ -84,7 +84,6 @@ export async function GET(request: Request) {
       environment: envCheck,
     })
   } catch (error) {
-    console.error('Error checking OAuth status:', error)
     return NextResponse.json(
       { error: 'Failed to check OAuth status', details: error },
       { status: 500 }

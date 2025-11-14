@@ -2,10 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import useSWR from 'swr'
-import { Video, Upload, Play, Trash2, Clock, Filter, X, ExternalLink } from 'lucide-react'
+import { Video, Play, Trash2, Clock, Filter, X, ExternalLink } from 'lucide-react'
 import { RecordingWithRelations, RecordingProvider, RecordingStatus } from '@/lib/types/database'
 import { format } from 'date-fns'
-import UploadRecordingDrawer from '../modals/UploadRecordingDrawer'
 import { RecordingSkeleton } from '../shared/ListItemSkeleton'
 import Drawer from '../shared/Drawer/Drawer'
 import DrawerHeader from '../shared/Drawer/DrawerHeader'
@@ -30,7 +29,6 @@ interface RecordingsTabProps {
 export default function RecordingsTab({ roleOverride, companyId }: RecordingsTabProps) {
   const confirm = useConfirm()
   const { showSuccess, showError } = useToast()
-  const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedRecording, setSelectedRecording] = useState<RecordingWithRelations | null>(null)
   const [filterProvider, setFilterProvider] = useState<RecordingProvider | 'all'>('all')
 
@@ -50,7 +48,6 @@ export default function RecordingsTab({ roleOverride, companyId }: RecordingsTab
   // Show error if fetch failed
   useEffect(() => {
     if (error) {
-      console.error('Error loading recordings:', error)
       showError('Failed to load recordings', error.message || 'Please try again.')
     }
   }, [error, showError])
@@ -83,7 +80,6 @@ export default function RecordingsTab({ roleOverride, companyId }: RecordingsTab
         showError('Delete Failed', errorData.error || 'Failed to delete the recording.')
       }
     } catch (error) {
-      console.error('Error deleting recording:', error)
       showError('Delete Failed', 'An error occurred while deleting the recording.')
     }
   }
@@ -182,15 +178,6 @@ export default function RecordingsTab({ roleOverride, companyId }: RecordingsTab
               : 'Access your session recordings'}
           </p>
         </div>
-        {isAdmin && (
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="btn-primary flex items-center gap-2"
-          >
-            <Upload className="w-4 h-4" />
-            Upload Recording
-          </button>
-        )}
       </div>
 
       {/* Filters */}
@@ -241,9 +228,7 @@ export default function RecordingsTab({ roleOverride, companyId }: RecordingsTab
           <Video className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
           <p className="text-zinc-400 text-lg">No recordings available</p>
           <p className="text-zinc-500 text-sm mt-2">
-            {isAdmin
-              ? 'Upload recordings to make them available'
-              : 'Recordings from your sessions will appear here'}
+            Recordings from your sessions will appear here
           </p>
         </div>
       ) : filteredRecordings.length === 0 ? (
@@ -425,15 +410,6 @@ export default function RecordingsTab({ roleOverride, companyId }: RecordingsTab
         </Drawer>
       )}
 
-      {/* Upload Recording Drawer */}
-      {isAdmin && (
-        <UploadRecordingDrawer
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          onSuccess={() => mutate()}
-          companyId={companyId}
-        />
-      )}
     </div>
   )
 }

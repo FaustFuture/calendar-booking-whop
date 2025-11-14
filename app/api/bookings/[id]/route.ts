@@ -119,18 +119,16 @@ export async function PATCH(
           .eq('id', id)
 
         // Fetch recordings in background (don't wait for it)
-        recordingFetchService.fetchRecordingsForBooking(id, companyId).catch((error) => {
-          console.error(`Failed to fetch recordings for booking ${id} (immediate):`, error)
+        recordingFetchService.fetchRecordingsForBooking(id, companyId).catch(() => {
+          // Failed to fetch recordings
         })
       } catch (error) {
-        console.error(`Error triggering immediate recording fetch for booking ${id}:`, error)
         // Don't fail the request if recording fetch fails
       }
     }
 
     return NextResponse.json({ data })
   } catch (error) {
-    console.error('Error updating booking:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
@@ -198,7 +196,6 @@ export async function DELETE(
 
     return NextResponse.json({ message: 'Booking deleted' })
   } catch (error) {
-    console.error('Error deleting booking:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }

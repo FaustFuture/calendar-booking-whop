@@ -61,37 +61,14 @@ export async function GET(request: Request) {
       query = query.eq('member_id', whopUser.userId)
     }
 
-    console.log('🔍 Fetching bookings with query:', {
-      role: whopUser.role,
-      userId: whopUser.userId,
-      filterByMemberId: whopUser.role === 'member',
-      status
-    })
-
     const { data, error } = await query
 
     if (error) {
-      console.error('❌ Supabase query error:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    console.log('✅ Bookings fetched successfully:', {
-      count: data?.length || 0,
-      bookings: data?.map(b => ({
-        id: b.id,
-        member_id: b.member_id,
-        company_id: b.company_id,
-        title: b.title,
-        booking_start_time: b.booking_start_time,
-        booking_end_time: b.booking_end_time,
-        pattern_title: b.pattern?.title,
-        meeting_url: b.meeting_url ? '✅' : '❌'
-      }))
-    })
-
     return NextResponse.json({ bookings: data })
   } catch (error) {
-    console.error('❌ Unexpected error in GET /api/bookings:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
@@ -123,21 +100,15 @@ export async function POST(request: Request) {
       isAuthenticatedBooking = true
       try {
         whopUser = await requireWhopAuth(companyId, true)
-        console.log('✅ Authenticated user detected:', whopUser.userId)
 
         // CRITICAL: Sync authenticated user to Supabase BEFORE creating booking
         await syncWhopUserToSupabase(whopUser)
-        console.log('✅ User synced to Supabase:', whopUser.userId)
       } catch (error) {
-        console.error('❌ Failed to authenticate or sync user for booking:', error)
         return NextResponse.json(
           { error: 'Failed to authenticate user. Please try refreshing the page and booking again.' },
           { status: 401 }
         )
       }
-    } else {
-      // Guest booking
-      console.log('👤 Guest booking (no authentication required)')
     }
 
     // Get slot or pattern details to check if meeting generation is needed
@@ -149,17 +120,6 @@ export async function POST(request: Request) {
     // Find an admin in the company for meeting generation (if needed)
     // We'll determine this when we need to generate a meeting link
     let adminIdForMeeting: string | null = null
-
-    console.log('📋 Booking request body:', {
-      slot_id: body.slot_id,
-      pattern_id: body.pattern_id,
-      company_id: companyId,
-      member_id: body.member_id,
-      guest_email: body.guest_email,
-      booking_start_time: body.booking_start_time,
-      booking_end_time: body.booking_end_time,
-      authenticatedUser: whopUser?.userId || 'guest'
-    })
 
     // Check if this is a slot-based or pattern-based booking
     if (body.slot_id) {
@@ -179,19 +139,10 @@ export async function POST(request: Request) {
         .eq('id', body.pattern_id)
         .single()
 
-      console.log('📅 Pattern data fetched:', patternData)
       meetingData = patternData
       startTime = body.booking_start_time
       endTime = body.booking_end_time
     }
-
-    console.log('🔍 Meeting data check:', {
-      hasMeetingData: !!meetingData,
-      meetingType: meetingData?.meeting_type,
-      requiresGeneration: meetingData?.meeting_config?.requiresGeneration,
-      startTime,
-      endTime,
-    })
 
     // Check if meeting generation is required
     if (
@@ -199,12 +150,8 @@ export async function POST(request: Request) {
       (meetingData.meeting_type === 'zoom' || meetingData.meeting_type === 'google_meet') &&
       meetingData.meeting_config?.requiresGeneration
     ) {
-      console.log('🚀 Starting meeting link generation...', {
-        companyId,
-        meetingType: meetingData.meeting_type,
-        startTime,
-        endTime,
-      })
+
+      console.log('meetingData', meetingData)
 
       // Check if provider is configured before attempting generation
       let providerConfigured = false
@@ -215,13 +162,6 @@ export async function POST(request: Request) {
           process.env.ZOOM_CLIENT_ID &&
           process.env.ZOOM_CLIENT_SECRET
         )
-        if (!providerConfigured) {
-          console.error('❌ Zoom Server-to-Server OAuth not configured:', {
-            hasAccountId: !!process.env.ZOOM_ACCOUNT_ID,
-            hasClientId: !!process.env.ZOOM_CLIENT_ID,
-            hasClientSecret: !!process.env.ZOOM_CLIENT_SECRET,
-          })
-        }
       } else if (meetingData.meeting_type === 'google_meet') {
         // Google Meet uses user OAuth connections - will check later when we have adminId
         providerConfigured = true // Will verify connection exists when we have the admin user
@@ -229,7 +169,6 @@ export async function POST(request: Request) {
 
       if (!providerConfigured) {
         // Continue without meeting URL - booking will be created but without link
-        console.warn('⚠️ Provider not configured, skipping meeting generation')
       } else {
         try {
           // Find an admin in the company for OAuth connection
@@ -237,29 +176,18 @@ export async function POST(request: Request) {
             // First, try to use the authenticated user if they're an admin
             if (whopUser && whopUser.role === 'admin') {
               adminIdForMeeting = whopUser.userId
-              console.log('📋 Using authenticated admin user for meeting:', adminIdForMeeting)
             } else {
               // Find any admin user (Note: users table doesn't have company_id, 
               // but we use company_id from bookings/patterns for multi-tenancy)
-              const { data: adminUser, error: adminError } = await supabase
+              const { data: adminUser } = await supabase
                 .from('users')
                 .select('id')
                 .eq('role', 'admin')
                 .limit(1)
                 .single()
 
-              if (adminError) {
-                console.error('❌ Error finding admin user:', adminError)
-              }
-
               if (adminUser) {
                 adminIdForMeeting = adminUser.id
-                console.log('📋 Found admin in company for meeting:', adminIdForMeeting)
-              } else {
-                console.warn('⚠️ No admin found in company for meeting generation', {
-                  companyId,
-                  error: adminError?.message,
-                })
               }
             }
           }
@@ -270,18 +198,10 @@ export async function POST(request: Request) {
 
           // For Google Meet, verify the admin has an active OAuth connection
           if (meetingData.meeting_type === 'google_meet') {
-            console.log('🔍 Checking Google Meet OAuth connection for admin:', adminIdForMeeting)
             const hasConnection = await meetingService.hasActiveConnection(adminIdForMeeting, 'google')
-            console.log('🔍 Google Meet connection status:', hasConnection)
             if (!hasConnection) {
-              console.error('❌ Google Meet OAuth connection not found for admin:', {
-                adminId: adminIdForMeeting,
-                companyId,
-                message: 'Admin needs to connect Google account in Settings → Integrations'
-              })
               throw new Error('Google Meet not connected. Please connect your Google account in Settings → Integrations.')
             }
-            console.log('✅ Google Meet OAuth connection verified')
           }
 
           // Get attendee emails
@@ -310,21 +230,6 @@ export async function POST(request: Request) {
 
           // Generate meeting link
           const provider = getOAuthProvider(meetingData.meeting_type)
-          console.log('🔗 Mapping meeting type to provider:', {
-            meetingType: meetingData.meeting_type,
-            provider,
-            adminId: adminIdForMeeting,
-            attendeeCount: attendeeEmails.length,
-          })
-
-          console.log('🚀 Calling meetingService.generateMeetingLink with:', {
-            userId: adminIdForMeeting,
-            provider,
-            title: body.title || meetingData.title || 'Meeting',
-            startTime,
-            endTime,
-            attendeeCount: attendeeEmails.length,
-          })
 
           const meetingResult = await meetingService.generateMeetingLink(
             adminIdForMeeting, // Use admin's OAuth connection
@@ -340,41 +245,7 @@ export async function POST(request: Request) {
           )
 
           meetingUrl = meetingResult.meetingUrl
-          console.log('✅ Meeting link generated successfully:', {
-            meetingUrl,
-            meetingId: meetingResult.meetingId,
-            provider: meetingResult.provider,
-          })
         } catch (error) {
-          // Enhanced error logging for production debugging
-          const errorMessage = error instanceof Error ? error.message : String(error)
-          const errorStack = error instanceof Error ? error.stack : undefined
-          const errorDetails = error instanceof Error ? { ...error } : error
-
-          console.error('❌ Failed to generate meeting link:', {
-            error: errorMessage,
-            stack: errorStack,
-            details: errorDetails,
-            companyId,
-            meetingType: meetingData.meeting_type,
-            adminId: adminIdForMeeting,
-            startTime,
-            endTime,
-          })
-
-          // Log specific error types
-          if (errorMessage.includes('not configured')) {
-            console.error('❌ Provider configuration issue - check environment variables')
-          } else if (errorMessage.includes('not connected') || errorMessage.includes('OAuth connection')) {
-            console.error('❌ OAuth connection issue - user needs to connect their account')
-          } else if (errorMessage.includes('token')) {
-            console.error('❌ OAuth token issue - token may be expired or invalid')
-          } else if (errorMessage.includes('meeting')) {
-            console.error('❌ Meeting creation failed - check API permissions and scopes')
-          } else if (errorMessage.includes('Google')) {
-            console.error('❌ Google Meet specific error - check Google Calendar API permissions')
-          }
-
           // Continue with booking creation but without meeting URL
           // This prevents booking creation from failing if meeting generation fails
         }
@@ -386,8 +257,6 @@ export async function POST(request: Request) {
       // For location, store address in notes or description
       meetingUrl = null
     }
-
-    console.log('💾 Inserting booking with meeting_url:', meetingUrl ? '✅ Present' : '❌ Missing')
 
     // Extract companyId from body (used for auth only, not a DB column)
     const { companyId: _, ...bookingData } = body
@@ -402,20 +271,7 @@ export async function POST(request: Request) {
       description: bookingData.description || meetingData?.description,
     }
 
-    console.log('📝 Actual data being inserted into database:', {
-      member_id: insertData.member_id,
-      company_id: insertData.company_id,
-      pattern_id: insertData.pattern_id,
-      slot_id: insertData.slot_id,
-      guest_name: insertData.guest_name,
-      guest_email: insertData.guest_email,
-      status: insertData.status,
-      title: insertData.title,
-      description: insertData.description,
-      booking_start_time: insertData.booking_start_time,
-      booking_end_time: insertData.booking_end_time,
-      hasMeetingUrl: !!insertData.meeting_url
-    })
+    console.log('📝 Booking data before database insert:', insertData)
 
     const { data, error } = await supabase
       .from('bookings')
@@ -424,23 +280,8 @@ export async function POST(request: Request) {
       .single()
 
     if (error) {
-      console.error('❌ Database insert error:', error)
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
-
-    console.log('✅ Booking created in database:', {
-      id: data.id,
-      member_id: data.member_id,
-      company_id: data.company_id,
-      status: data.status,
-      title: data.title,
-      description: data.description,
-      booking_start_time: data.booking_start_time,
-      booking_end_time: data.booking_end_time,
-      meeting_url: data.meeting_url ? '✅ Present' : '❌ Missing',
-      guest_name: data.guest_name,
-      guest_email: data.guest_email
-    })
 
     return NextResponse.json({ data }, { status: 201 })
   } catch (error) {

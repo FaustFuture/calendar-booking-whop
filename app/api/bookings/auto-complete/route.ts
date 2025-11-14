@@ -38,7 +38,6 @@ export async function GET(request: Request) {
       .eq('status', 'upcoming')
 
     if (fetchError) {
-      console.error('❌ Error fetching bookings:', fetchError)
       return NextResponse.json({ error: fetchError.message }, { status: 500 })
     }
 
@@ -77,11 +76,8 @@ export async function GET(request: Request) {
       .in('id', bookingIds)
 
     if (updateError) {
-      console.error('❌ Error updating past bookings:', updateError)
       return NextResponse.json({ error: updateError.message }, { status: 500 })
     }
-
-    console.log(`✅ Updated ${bookingIds.length} past bookings to completed status`)
 
     // Phase 2: Fetch recordings for newly auto-completed bookings
     let recordingsFetched = 0
@@ -92,9 +88,7 @@ export async function GET(request: Request) {
           booking.company_id
         )
         recordingsFetched++
-        console.log(`✅ Fetched recordings for auto-completed booking ${booking.id}`)
       } catch (error) {
-        console.error(`❌ Failed to fetch recordings for booking ${booking.id} (auto-complete):`, error)
         // Continue with other bookings even if one fails
       }
     }
@@ -105,7 +99,6 @@ export async function GET(request: Request) {
       recordingsFetched,
     })
   } catch (error) {
-    console.error('❌ Error in auto-complete check:', error)
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : 'Internal server error',

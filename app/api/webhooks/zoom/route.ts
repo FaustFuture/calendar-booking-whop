@@ -49,7 +49,6 @@ function verifyZoomWebhook(
   const webhookSecret = process.env.ZOOM_WEBHOOK_SECRET
 
   if (!webhookSecret) {
-    console.warn('ZOOM_WEBHOOK_SECRET not configured - skipping verification')
     return true // Allow in dev mode
   }
 
@@ -81,7 +80,6 @@ export async function POST(request: NextRequest) {
 
     // Verify webhook signature
     if (!verifyZoomWebhook(request, body)) {
-      console.error('Invalid Zoom webhook signature')
       return NextResponse.json(
         { error: 'Invalid signature' },
         { status: 401 }
@@ -89,8 +87,6 @@ export async function POST(request: NextRequest) {
     }
 
     const event: ZoomWebhookEvent = JSON.parse(body)
-
-    console.log('Zoom webhook received:', event.event)
 
     // Handle different event types
     switch (event.event) {
@@ -111,12 +107,11 @@ export async function POST(request: NextRequest) {
         })
 
       default:
-        console.log(`Unhandled Zoom webhook event: ${event.event}`)
+        // Unhandled Zoom webhook event
     }
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Zoom webhook error:', error)
     return NextResponse.json(
       { error: 'Webhook processing failed' },
       { status: 500 }
@@ -131,8 +126,6 @@ export async function POST(request: NextRequest) {
 async function handleRecordingCompleted(event: ZoomWebhookEvent) {
   const supabase = await createClient()
   const meetingId = event.payload.object.id.toString()
-
-  console.log(`Processing recording for Zoom meeting: ${meetingId}`)
 
   // Find booking(s) with this meeting ID
   // The meeting_url might contain the meeting ID
@@ -155,7 +148,6 @@ async function handleRecordingCompleted(event: ZoomWebhookEvent) {
       .limit(1)
 
     if (!completedBookings || completedBookings.length === 0) {
-      console.warn(`No booking found for Zoom meeting ${meetingId}`)
       return
     }
 
@@ -189,10 +181,6 @@ async function handleRecordingCompleted(event: ZoomWebhookEvent) {
         booking.id
       )
 
-      console.log(
-        `Saved ${recordings.length} recording(s) for booking ${booking.id}`
-      )
-
       // Update booking status to completed if still upcoming
       if (bookings[0].id === booking.id) {
         await supabase
@@ -202,7 +190,7 @@ async function handleRecordingCompleted(event: ZoomWebhookEvent) {
           .eq('status', 'upcoming')
       }
     } catch (error) {
-      console.error(`Failed to process recording for booking ${booking.id}:`, error)
+      // Failed to process recording
     }
   }
 }

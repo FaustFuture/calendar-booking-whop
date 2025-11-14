@@ -42,7 +42,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Disconnect error:', error)
     return NextResponse.json(
       { error: 'Failed to disconnect provider' },
       { status: 500 }

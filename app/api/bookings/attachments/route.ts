@@ -107,12 +107,6 @@ export async function POST(request: Request) {
         })
 
       if (uploadError) {
-        console.error('Error uploading file to Supabase Storage:', {
-          fileName: file.name,
-          filePath,
-          error: uploadError,
-          message: uploadError.message,
-        })
         continue // Skip this file and continue with others
       }
 
@@ -134,7 +128,6 @@ export async function POST(request: Request) {
         .single()
 
       if (dbError) {
-        console.error('Error saving attachment metadata:', dbError)
         // Try to delete the uploaded file if database insert fails
         await storageClient.storage.from('booking-attachments').remove([filePath])
         continue
@@ -155,7 +148,6 @@ export async function POST(request: Request) {
       attachments: uploadedAttachments,
     })
   } catch (error) {
-    console.error('Error uploading attachments:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

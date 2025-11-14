@@ -12,42 +12,34 @@ export default async function DashboardLanding() {
   let whopCompanyId = headersList.get('x-whop-company-id')
 
   if (whopCompanyId) {
-    console.log('[Dashboard Landing] Found company ID in header:', whopCompanyId)
     redirect(`/dashboard/${whopCompanyId}`)
   }
 
   // Try to get user from Whop token and infer company
   try {
     const { userId } = await whopsdk.verifyUserToken(headersList)
-    console.log('[Dashboard Landing] Verified user from token:', userId)
 
     // Try to get user's companies/memberships
     // Note: This requires fetching user data to find their company
-    const user = await whopsdk.users.retrieve(userId)
-    console.log('[Dashboard Landing] Retrieved user data:', { userId, username: (user as any).username })
+    await whopsdk.users.retrieve(userId)
 
     // For Whop apps, users typically access through a specific company context
     // Check if there's a company ID in the request headers that we can use
     const companyHeader = headersList.get('x-company-id')
     if (companyHeader) {
-      console.log('[Dashboard Landing] Found company in x-company-id header:', companyHeader)
       redirect(`/dashboard/${companyHeader}`)
     }
 
     // If still no company, this might be the first time - show setup instructions
   } catch (error) {
-    console.log('[Dashboard Landing] Could not verify user token:', error instanceof Error ? error.message : error)
+    // Could not verify user token
   }
 
   // Fallback for development mode
   const devCompanyId = process.env.NEXT_PUBLIC_WHOP_COMPANY_ID
   if (process.env.NODE_ENV === 'development' && devCompanyId) {
-    console.log('[Dashboard Landing] Using dev company ID from env:', devCompanyId)
     redirect(`/dashboard/${devCompanyId}`)
   }
-
-  // If we reach here, no company context is available
-  console.warn('[Dashboard Landing] No company context found - user needs to access via Whop iframe')
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 flex items-center justify-center p-4">

@@ -25,10 +25,7 @@ export class ZoomService {
     this.clientId = process.env.ZOOM_CLIENT_ID || process.env.NEXT_PUBLIC_ZOOM_CLIENT_ID || ''
     this.clientSecret = process.env.ZOOM_CLIENT_SECRET || ''
 
-    if (!this.accountId || !this.clientId || !this.clientSecret) {
-      console.warn('Zoom Server-to-Server OAuth configuration incomplete. Check environment variables.')
-      console.warn('Required: ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET')
-    }
+    // Zoom Server-to-Server OAuth configuration validated in generateAccessToken()
   }
 
   /**
@@ -61,15 +58,6 @@ export class ZoomService {
       // Server-to-Server OAuth uses account credentials to get tokens
       const credentials = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64')
 
-      console.log('🔐 Attempting to generate Zoom Server-to-Server token...', {
-        hasAccountId: !!this.accountId,
-        hasClientId: !!this.clientId,
-        hasClientSecret: !!this.clientSecret,
-        accountIdLength: this.accountId.length,
-        clientIdLength: this.clientId.length,
-        clientSecretLength: this.clientSecret.length,
-      })
-
       const response = await fetch(ZOOM_TOKEN_URL, {
         method: 'POST',
         headers: {
@@ -90,14 +78,6 @@ export class ZoomService {
           errorData = { error: response.statusText, status: response.status }
         }
 
-        console.error('❌ Zoom token generation failed:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorData,
-          accountId: this.accountId.substring(0, 4) + '...', // Log partial for debugging
-          clientId: this.clientId.substring(0, 4) + '...', // Log partial for debugging
-        })
-
         // Provide specific guidance based on error
         let errorMessage = errorData.reason || errorData.error || response.statusText
         if (errorData.error === 'invalid_client' || errorMessage.includes('Invalid client')) {
@@ -115,12 +95,6 @@ export class ZoomService {
       }
 
       const tokens: OAuthTokens = await response.json()
-      
-      console.log('Zoom Server-to-Server token generated:', {
-        hasAccessToken: !!tokens.access_token,
-        expiresIn: tokens.expires_in,
-        scopes: tokens.scope,
-      })
       
       return tokens
     } catch (error) {
@@ -233,7 +207,6 @@ export class ZoomService {
     accessToken: string,
     details: MeetingDetails
   ): Promise<MeetingResult> {
-    console.log('createMeeting', accessToken, details)
     try {
       // Parse start time to create Zoom-compatible format
       const startTime = new Date(details.startTime)
@@ -268,15 +241,6 @@ export class ZoomService {
       }
 
       const apiUrl = `${ZOOM_API_BASE}/users/me/meetings`
-      console.log('Zoom API call - createMeeting:', {
-        url: apiUrl,
-        method: 'POST',
-        hasAccessToken: !!accessToken,
-        meetingTitle: details.title,
-        enableRecording: details.enableRecording,
-        autoRecording: meetingRequest.settings.auto_recording,
-        joinBeforeHost: meetingRequest.settings.join_before_host,
-      })
 
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -287,11 +251,6 @@ export class ZoomService {
         body: JSON.stringify(meetingRequest),
       })
 
-      console.log('Zoom API response - createMeeting:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-      })
 
       if (!response.ok) {
         let errorData: any
@@ -301,17 +260,6 @@ export class ZoomService {
           // If response isn't JSON, use status text
           errorData = { message: response.statusText, status: response.status }
         }
-
-        console.error('❌ Zoom API error response:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorData,
-          meetingRequest: {
-            topic: meetingRequest.topic,
-            start_time: meetingRequest.start_time,
-            duration: meetingRequest.duration,
-          },
-        })
 
         throw new MeetingServiceError(
           `Failed to create Zoom meeting: ${errorData.message || errorData.reason || 'Unknown error'} (Status: ${response.status})`,
@@ -352,12 +300,6 @@ export class ZoomService {
   }> {
     try {
       const apiUrl = `${ZOOM_API_BASE}/users/me`
-      console.log('Zoom API call - getUserInfo:', {
-        url: apiUrl,
-        method: 'GET',
-        hasAccessToken: !!accessToken,
-        tokenLength: accessToken?.length,
-      })
 
       const response = await fetch(apiUrl, {
         headers: {
@@ -366,19 +308,8 @@ export class ZoomService {
         },
       })
 
-      console.log('Zoom API response - getUserInfo:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-      })
-
       if (!response.ok) {
         const errorBody = await response.json().catch(() => ({}))
-        console.error('Zoom getUserInfo error:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorBody,
-        })
         throw new MeetingServiceError(
           `Failed to get user info from Zoom: ${errorBody.message || response.statusText}`,
           'zoom',

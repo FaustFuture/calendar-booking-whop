@@ -11,7 +11,9 @@ export const getWhopSession = cache(async (companyId: string) => {
 
   if (result.success && result.user) {
     // Sync user to Supabase in background
-    syncWhopUserToSupabase(result.user).catch(console.error)
+    syncWhopUserToSupabase(result.user).catch(() => {
+      // Failed to sync user
+    })
 
     return {
       user: result.user,

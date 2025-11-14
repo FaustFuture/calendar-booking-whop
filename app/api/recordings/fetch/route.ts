@@ -55,7 +55,6 @@ export async function POST(request: NextRequest) {
       recordings,
     })
   } catch (error: any) {
-    console.error('Recording fetch error:', error)
     return NextResponse.json(
       { error: error.message || 'Failed to fetch recordings' },
       { status: 500 }
@@ -89,7 +88,6 @@ export async function GET(request: NextRequest) {
       { status: 400 }
     )
   } catch (error: any) {
-    console.error('Recording poll error:', error)
     return NextResponse.json(
       { error: error.message || 'Failed to poll recordings' },
       { status: 500 }

@@ -50,12 +50,6 @@ export default function ViewSlotsDrawer({
   const isGuest = !currentUserId  // Determine from passed prop
   const supabase = createClient()
 
-  console.log('🔐 ViewSlotsDrawer user context:', {
-    currentUserId,
-    currentUserEmail,
-    isGuest
-  })
-
   // Reset to current week and load slots when modal opens
   useEffect(() => {
     if (isOpen && pattern) {
@@ -188,9 +182,6 @@ export default function ViewSlotsDrawer({
       // Get current time for filtering past slots
       const now = new Date()
 
-      console.log('🕐 Current time:', now.toISOString())
-      console.log('📊 Generated slots before filtering:', generatedSlots.length)
-
       // Mark slots as booked if they match an existing booking, and filter out past slots
       const slotsWithBookingStatus = generatedSlots
         .filter(slot => {
@@ -203,12 +194,9 @@ export default function ViewSlotsDrawer({
           is_booked: bookedTimeSlots.has(new Date(slot.start_time).toISOString())
         }))
 
-      console.log('✅ Available future slots:', slotsWithBookingStatus.length)
-      console.log('📅 First available slot:', slotsWithBookingStatus[0]?.start_time)
-
       setSlots(slotsWithBookingStatus)
     } catch (error) {
-      console.error('Error loading slots:', error)
+      // Error loading slots
     } finally {
       setLoading(false)
     }
@@ -216,12 +204,6 @@ export default function ViewSlotsDrawer({
 
   async function handleBookSlot() {
     if (!selectedSlot || !pattern) return
-
-    console.log('🎟️ Booking attempt:', {
-      hasUser: !!currentUserId,
-      userId: currentUserId,
-      isGuest
-    })
 
     // Validate guest information if booking as guest
     if (isGuest) {
@@ -257,23 +239,11 @@ export default function ViewSlotsDrawer({
       if (currentUserId && !isGuest) {
         // Logged-in member booking
         bookingData.member_id = currentUserId
-        console.log('👤 Creating member booking:', {
-          member_id: currentUserId,
-          email: currentUserEmail,
-          isGuest,
-        })
       } else {
         // Guest booking
         bookingData.guest_name = guestName.trim()
         bookingData.guest_email = guestEmail.trim()
-        console.log('🎫 Creating guest booking:', {
-          guest_name: guestName,
-          guest_email: guestEmail,
-          isGuest,
-        })
       }
-
-      console.log('📤 Booking data being sent:', bookingData)
 
       // Create booking via API (this triggers meeting link generation)
       const response = await fetch('/api/bookings', {
@@ -290,7 +260,6 @@ export default function ViewSlotsDrawer({
       }
 
       const result = await response.json()
-      console.log('✅ Booking created:', result.data)
 
       // Upload files if any
       if (selectedFiles.length > 0 && result.data?.id) {
@@ -309,7 +278,6 @@ export default function ViewSlotsDrawer({
 
           if (!uploadResponse.ok) {
             const errorData = await uploadResponse.json()
-            console.error('Failed to upload files:', errorData)
             
             // Check if it's a file size error
             if (errorData.error === 'File size exceeded') {
@@ -317,11 +285,8 @@ export default function ViewSlotsDrawer({
             } else {
               showWarning('Booking Created', 'Booking was created but some files failed to upload.')
             }
-          } else {
-            console.log('✅ Files uploaded successfully')
           }
         } catch (uploadError) {
-          console.error('Error uploading files:', uploadError)
           showWarning('Booking Created', 'Booking was created but file upload failed.')
         }
       }
@@ -336,7 +301,6 @@ export default function ViewSlotsDrawer({
       setNotes('')
       setSelectedFiles([])
     } catch (error) {
-      console.error('Error booking slot:', error)
       showError('Booking Failed', 'Please try again.')
     } finally {
       setBooking(false)

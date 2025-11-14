@@ -1,7 +1,7 @@
 /**
  * Notification Check Cron Job
  * This endpoint should be called periodically (every minute) to check for upcoming meetings
- * and send reminder notifications 15 minutes and 2 minutes before meetings.
+ * and send reminder notifications 24 hours, 2 hours, and 30 minutes before meetings.
  * 
  * Setup in Vercel:
  * 1. Go to your project settings
@@ -24,25 +24,13 @@ export async function GET(request: Request) {
     const companyId = searchParams.get('companyId')
     const userAgent = request.headers.get('user-agent') || ''
     const isCronJob = userAgent.includes('vercel-cron')
-    
-    // Log execution context
-    console.log('⏰ Notification check triggered:', {
-      timestamp: new Date().toISOString(),
-      isCronJob,
-      hasCompanyId: !!companyId,
-      hasWhopApiKey: !!process.env.WHOP_API_KEY,
-      whopApiKeyLength: process.env.WHOP_API_KEY?.length || 0,
-      userAgent,
-    })
 
     // If called from client (with companyId), verify user authentication
     if (companyId && !isCronJob) {
       try {
         const { requireWhopAuth } = await import('@/lib/auth/whop')
         await requireWhopAuth(companyId, true)
-        console.log('✅ Client-side notification check authenticated')
       } catch (authError) {
-        console.error('❌ Client-side auth failed:', authError)
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
     }
@@ -51,14 +39,12 @@ export async function GET(request: Request) {
     if (isCronJob) {
       const authHeader = request.headers.get('authorization')
       if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-        console.warn('⚠️ Cron job blocked by CRON_SECRET check')
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
     }
 
     // Verify WHOP_API_KEY is available
     if (!process.env.WHOP_API_KEY) {
-      console.error('❌ WHOP_API_KEY is not set in cron job environment!')
       return NextResponse.json(
         { error: 'WHOP_API_KEY not configured' },
         { status: 500 }
@@ -79,64 +65,52 @@ export async function GET(request: Request) {
         member_id,
         status,
         meeting_url,
-        notification_15min_sent,
-        notification_2min_sent,
+        notification_24h_sent,
+        notification_2h_sent,
+        notification_30min_sent,
         member:member_id(id, name, email),
         pattern:pattern_id(company_id)
       `)
       .eq('status', 'upcoming')
       .not('booking_start_time', 'is', null)
-      .or('notification_15min_sent.is.null,notification_15min_sent.eq.false,notification_2min_sent.is.null,notification_2min_sent.eq.false')
+      .or('notification_24h_sent.is.null,notification_24h_sent.eq.false,notification_2h_sent.is.null,notification_2h_sent.eq.false,notification_30min_sent.is.null,notification_30min_sent.eq.false')
 
     // Filter by company if provided (client-side calls)
     if (companyId) {
       query = query.eq('company_id', companyId)
     }
 
-    // Calculate time windows
-    const fifteenMinutesFromNow = new Date(now.getTime() + 15 * 60 * 1000)
-    const twoMinutesFromNow = new Date(now.getTime() + 2 * 60 * 1000)
+    // Calculate time windows (with ±1 minute buffer to catch meetings in the current minute window)
+    const twentyFourHoursFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+    const twoHoursFromNow = new Date(now.getTime() + 2 * 60 * 60 * 1000)
+    const thirtyMinutesFromNow = new Date(now.getTime() + 30 * 60 * 1000)
 
-    // Add 1 minute buffer to catch meetings in the current minute window
-    const fifteenMinWindowStart = new Date(fifteenMinutesFromNow.getTime() - 60 * 1000)
-    const fifteenMinWindowEnd = new Date(fifteenMinutesFromNow.getTime() + 60 * 1000)
-    const twoMinWindowStart = new Date(twoMinutesFromNow.getTime() - 60 * 1000)
-    const twoMinWindowEnd = new Date(twoMinutesFromNow.getTime() + 60 * 1000)
-
-    console.log('🔔 Checking for upcoming meetings...', {
-      now: now.toISOString(),
-      fifteenMinWindow: {
-        start: fifteenMinWindowStart.toISOString(),
-        end: fifteenMinWindowEnd.toISOString(),
-      },
-      twoMinWindow: {
-        start: twoMinWindowStart.toISOString(),
-        end: twoMinWindowEnd.toISOString(),
-      },
-    })
+    const twentyFourHourWindowStart = new Date(twentyFourHoursFromNow.getTime() - 60 * 1000)
+    const twentyFourHourWindowEnd = new Date(twentyFourHoursFromNow.getTime() + 60 * 1000)
+    const twoHourWindowStart = new Date(twoHoursFromNow.getTime() - 60 * 1000)
+    const twoHourWindowEnd = new Date(twoHoursFromNow.getTime() + 60 * 1000)
+    const thirtyMinWindowStart = new Date(thirtyMinutesFromNow.getTime() - 60 * 1000)
+    const thirtyMinWindowEnd = new Date(thirtyMinutesFromNow.getTime() + 60 * 1000)
 
     // Fetch upcoming bookings (already filtered above)
     const { data: upcomingBookings, error: fetchError } = await query
       .order('booking_start_time', { ascending: true })
 
     if (fetchError) {
-      console.error('❌ Error fetching bookings:', fetchError)
       return NextResponse.json({ error: fetchError.message }, { status: 500 })
     }
 
     if (!upcomingBookings || upcomingBookings.length === 0) {
-      console.log('ℹ️ No upcoming bookings found for notifications')
       return NextResponse.json({
         message: 'No upcoming bookings found',
         checked: 0,
-        sent: { '15min': 0, '2min': 0 },
+        sent: { '24h': 0, '2h': 0, '30min': 0 },
       })
     }
 
-    console.log(`📋 Found ${upcomingBookings.length} upcoming bookings to check for notifications`)
-
-    let sent15Min = 0
-    let sent2Min = 0
+    let sent24h = 0
+    let sent2h = 0
+    let sent30min = 0
 
     // Process each booking
     for (const booking of upcomingBookings) {
@@ -145,32 +119,37 @@ export async function GET(request: Request) {
       const startTime = new Date(booking.booking_start_time)
       const bookingStartTime = startTime.getTime()
 
-      // Check if booking is in 15-minute window
-      const isIn15MinWindow =
-        bookingStartTime >= fifteenMinWindowStart.getTime() &&
-        bookingStartTime <= fifteenMinWindowEnd.getTime()
+      // Check if booking is in 24-hour window
+      const isIn24hWindow =
+        bookingStartTime >= twentyFourHourWindowStart.getTime() &&
+        bookingStartTime <= twentyFourHourWindowEnd.getTime()
 
-      // Check if booking is in 2-minute window
-      const isIn2MinWindow =
-        bookingStartTime >= twoMinWindowStart.getTime() &&
-        bookingStartTime <= twoMinWindowEnd.getTime()
+      // Check if booking is in 2-hour window
+      const isIn2hWindow =
+        bookingStartTime >= twoHourWindowStart.getTime() &&
+        bookingStartTime <= twoHourWindowEnd.getTime()
 
-      // We'll send notifications to all admins in the company via companyTeamId
-      // The notification service's sendNotificationToAdmins handles this
+      // Check if booking is in 30-minute window
+      const isIn30minWindow =
+        bookingStartTime >= thirtyMinWindowStart.getTime() &&
+        bookingStartTime <= thirtyMinWindowEnd.getTime()
 
-      
-      // Send 15-minute notification
-      if (isIn15MinWindow && !booking.notification_15min_sent) {
+      // Send 24-hour notification
+      if (isIn24hWindow && !booking.notification_24h_sent) {
         try {
+          const meetingTime = new Date(booking.booking_start_time)
+          const timeString = meetingTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+          const dateString = meetingTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+
           // Send to member if exists
           if (booking.member_id) {
             await notificationService.sendNotificationToUser(
               booking.member_id,
               booking.company_id,
               `Meeting Reminder: ${booking.title}`,
-              `Your meeting starts in 15 minutes at ${new Date(booking.booking_start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`,
+              `Your meeting is scheduled for ${dateString} at ${timeString}`,
               `/bookings/${booking.id}`,
-              false // Match test button behavior
+              false
             )
           }
 
@@ -178,21 +157,53 @@ export async function GET(request: Request) {
           await notificationService.sendNotificationToAdmins(
             booking.company_id,
             `Meeting Reminder: ${booking.title}`,
-            `A meeting starts in 15 minutes at ${new Date(booking.booking_start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`,
+            `A meeting is scheduled for ${dateString} at ${timeString}`,
             `/bookings/${booking.id}`,
-            false // Match test button behavior
+            false
           )
 
-          await notificationService.markNotificationSent(booking.id, '15min')
-          sent15Min++
-          console.log(`✅ Sent 15-minute reminder for booking ${booking.id}`)
+          await notificationService.markNotificationSent(booking.id, '24h')
+          sent24h++
         } catch (error) {
-          console.error(`❌ Failed to send 15-minute reminder for booking ${booking.id}:`, error)
+          // Failed to send 24-hour reminder
         }
       }
 
-      // Send 2-minute notification
-      if (isIn2MinWindow && !booking.notification_2min_sent) {
+      // Send 2-hour notification
+      if (isIn2hWindow && !booking.notification_2h_sent) {
+        try {
+          const timeString = new Date(booking.booking_start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+
+          // Send to member if exists
+          if (booking.member_id) {
+            await notificationService.sendNotificationToUser(
+              booking.member_id,
+              booking.company_id,
+              `Meeting Reminder: ${booking.title}`,
+              `Your meeting starts in 2 hours at ${timeString}`,
+              `/bookings/${booking.id}`,
+              false
+            )
+          }
+
+          // Send to admins in the company
+          await notificationService.sendNotificationToAdmins(
+            booking.company_id,
+            `Meeting Reminder: ${booking.title}`,
+            `A meeting starts in 2 hours at ${timeString}`,
+            `/bookings/${booking.id}`,
+            false
+          )
+
+          await notificationService.markNotificationSent(booking.id, '2h')
+          sent2h++
+        } catch (error) {
+          // Failed to send 2-hour reminder
+        }
+      }
+
+      // Send 30-minute notification
+      if (isIn30minWindow && !booking.notification_30min_sent) {
         try {
           // Send to member if exists
           if (booking.member_id) {
@@ -200,9 +211,9 @@ export async function GET(request: Request) {
               booking.member_id,
               booking.company_id,
               `Meeting Starting Soon: ${booking.title}`,
-              `Your meeting starts in 2 minutes!`,
+              `Your meeting starts in 30 minutes!`,
               `/bookings/${booking.id}`,
-              false // Match test button behavior
+              false
             )
           }
 
@@ -210,16 +221,15 @@ export async function GET(request: Request) {
           await notificationService.sendNotificationToAdmins(
             booking.company_id,
             `Meeting Starting Soon: ${booking.title}`,
-            `A meeting starts in 2 minutes!`,
+            `A meeting starts in 30 minutes!`,
             `/bookings/${booking.id}`,
-            false // Match test button behavior
+            false
           )
 
-          await notificationService.markNotificationSent(booking.id, '2min')
-          sent2Min++
-          console.log(`✅ Sent 2-minute reminder for booking ${booking.id}`)
+          await notificationService.markNotificationSent(booking.id, '30min')
+          sent30min++
         } catch (error) {
-          console.error(`❌ Failed to send 2-minute reminder for booking ${booking.id}:`, error)
+          // Failed to send 30-minute reminder
         }
       }
     }
@@ -228,12 +238,12 @@ export async function GET(request: Request) {
       message: 'Notification check completed',
       checked: upcomingBookings.length,
       sent: {
-        '15min': sent15Min,
-        '2min': sent2Min,
+        '24h': sent24h,
+        '2h': sent2h,
+        '30min': sent30min,
       },
     })
   } catch (error) {
-    console.error('❌ Error in notification check:', error)
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : 'Internal server error',

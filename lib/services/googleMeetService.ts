@@ -25,9 +25,7 @@ export class GoogleMeetService {
     this.clientSecret = process.env.GOOGLE_CLIENT_SECRET || ''
     this.redirectUri = process.env.GOOGLE_REDIRECT_URI || ''
 
-    if (!this.clientId || !this.clientSecret || !this.redirectUri) {
-      console.warn('Google Meet configuration incomplete. Check environment variables.')
-    }
+    // Google Meet configuration validated when used
   }
 
   /**
@@ -97,8 +95,6 @@ export class GoogleMeetService {
    */
   async exchangeCodeForTokens(code: string): Promise<OAuthTokens> {
     try {
-      console.log('🔄 Exchanging code for tokens with redirect URI:', this.redirectUri)
-      
       const response = await fetch(GOOGLE_TOKEN_URL, {
         method: 'POST',
         headers: {
@@ -186,17 +182,29 @@ export class GoogleMeetService {
    * Note: Google Meet meetings created this way are automatically open
    * - Anyone with the link can join without the host needing to start the meeting
    * - The meeting is accessible at the scheduled start time
+   * 
+   * Recording: Google Meet recording cannot be automatically enabled via Calendar API.
+   * If enableRecording is true, a note will be added to the event description.
+   * Recording must be enabled manually by the host during the meeting, or configured
+   * via Google Workspace admin settings for automatic recording.
    */
   async createMeeting(
     accessToken: string,
     details: MeetingDetails
   ): Promise<MeetingResult> {
     try {
+      // Build description with recording note if enabled
+      let description = details.description || ''
+      if (details.enableRecording !== false) {
+        const recordingNote = '\n\n📹 Recording: Please enable recording when you start the meeting by clicking the "Record" button in the meeting controls.'
+        description = description ? `${description}${recordingNote}` : recordingNote.trim()
+      }
+
       // Format event for Google Calendar API
       // Google Meet meetings are automatically open - no additional settings needed
       const event = {
         summary: details.title,
-        description: details.description || '',
+        description,
         start: {
           dateTime: details.startTime,
           timeZone: details.timezone || 'UTC',
@@ -235,22 +243,26 @@ export class GoogleMeetService {
         }
       )
 
+      const result = await response.json()
+      console.log('response', result)
+
       if (!response.ok) {
-        const error = await response.json()
         throw new MeetingServiceError(
-          `Failed to create Google Meet: ${error.error?.message || 'Unknown error'}`,
+          `Failed to create Google Meet: ${result.error?.message || 'Unknown error'}`,
           'google',
-          error.error?.code?.toString(),
-          error
+          result.error?.code?.toString(),
+          result
         )
       }
 
-      const result = await response.json()
-
       // Extract Google Meet link from conference data
-      const meetingUrl = result.conferenceData?.entryPoints?.find(
-        (ep: { entryPointType: string }) => ep.entryPointType === 'video'
-      )?.uri
+      // const meetingUrl = result.conferenceData?.entryPoints?.find(
+      //   (ep: { entryPointType: string }) => ep.entryPointType === 'video'
+      // )?.uri
+
+      const meetingUrl = result.hangoutLink
+
+      console.log('meetingUrl', meetingUrl)
 
       if (!meetingUrl) {
         throw new MeetingServiceError(
@@ -268,6 +280,7 @@ export class GoogleMeetService {
       }
     } catch (error) {
       if (error instanceof MeetingServiceError) throw error
+      console.log('error', error)
       throw new MeetingServiceError(
         'Failed to create Google Meet meeting',
         'google',

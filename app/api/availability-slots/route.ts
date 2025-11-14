@@ -25,7 +25,6 @@ export async function GET(request: Request) {
       await syncWhopUserToSupabase(whopUser)
     } catch (error) {
       // Guest viewing allowed - authentication not required
-      console.log('Guest viewing availability')
     }
 
     const supabase = await createClient()

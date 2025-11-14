@@ -57,8 +57,9 @@ export interface Booking {
   guest_email?: string
   booking_start_time?: string
   booking_end_time?: string
-  notification_15min_sent?: boolean
-  notification_2min_sent?: boolean
+  notification_24h_sent?: boolean
+  notification_2h_sent?: boolean
+  notification_30min_sent?: boolean
   recording_fetch_immediate?: boolean
   recording_fetch_auto_complete?: boolean
   recording_fetch_15min?: boolean

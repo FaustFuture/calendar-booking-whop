@@ -20,17 +20,14 @@ export function middleware(request: NextRequest) {
 
   if (whopCompanyId) {
     requestHeaders.set('x-whop-company-id', whopCompanyId)
-    console.log('[Middleware] Forwarding Whop company ID:', whopCompanyId)
   }
 
   if (whopUserId) {
     requestHeaders.set('x-whop-user-id', whopUserId)
-    console.log('[Middleware] Forwarding Whop user ID:', whopUserId)
   }
 
   if (whopUserToken) {
     requestHeaders.set('x-whop-user-token', whopUserToken)
-    console.log('[Middleware] Forwarding Whop user token (length:', whopUserToken.length + ')')
   }
 
   // Extract companyId from URL for dashboard routes
@@ -44,7 +41,6 @@ export function middleware(request: NextRequest) {
 
     // Check if this is a valid company ID format (basic validation)
     if (!companyId || companyId === 'undefined' || companyId === 'null') {
-      console.error('[Middleware] Invalid companyId in URL:', companyId)
       return NextResponse.redirect(new URL('/auth/error', request.url))
     }
 

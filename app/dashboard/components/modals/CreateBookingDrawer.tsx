@@ -63,7 +63,6 @@ export default function CreateBookingDrawer({
       const membersData = await membersResponse.json()
       setMembers(membersData.members || [])
     } catch (error) {
-      console.error('Error loading members:', error)
       showError('Failed to Load Members', error instanceof Error ? error.message : 'Failed to load members. Please try again.')
     } finally {
       setMembersLoading(false)
@@ -94,7 +93,6 @@ export default function CreateBookingDrawer({
       onSuccess()
       onClose()
     } catch (error) {
-      console.error('Error creating booking:', error)
       showError('Booking Failed', error instanceof Error ? error.message : 'Failed to create booking. Please try again.')
     } finally {
       setLoading(false)

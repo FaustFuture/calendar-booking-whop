@@ -37,7 +37,6 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Failed to fetch connections:', error)
       return NextResponse.json(
         { error: 'Failed to fetch connections' },
         { status: 500 }
@@ -46,7 +45,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ connections: connections || [] })
   } catch (error) {
-    console.error('Connections endpoint error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

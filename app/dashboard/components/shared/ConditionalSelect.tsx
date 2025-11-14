@@ -57,7 +57,6 @@ export default function ConditionalSelect({
         checkConnectionStatus()
         setConnecting(null)
       } else if (event.data?.type === 'oauth-error') {
-        console.error('OAuth error:', event.data.error)
         setConnecting(null)
       }
     }
@@ -82,7 +81,6 @@ export default function ConditionalSelect({
         loading: false,
       })
     } catch (error) {
-      console.error('Failed to check connection status:', error)
       setConnectionStatus({ zoom: false, google: false, loading: false })
     }
   }
@@ -124,7 +122,6 @@ export default function ConditionalSelect({
         }
       }, 500)
     } catch (error) {
-      console.error(`Failed to connect ${provider}:`, error)
       setConnecting(null)
     }
   }

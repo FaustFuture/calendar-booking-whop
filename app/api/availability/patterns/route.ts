@@ -68,7 +68,6 @@ export async function POST(request: Request) {
       .single()
 
     if (error) {
-      console.error('Database error:', error)
       return NextResponse.json(
         { error: 'Failed to create availability pattern', details: error.message },
         { status: 500 }
@@ -81,7 +80,6 @@ export async function POST(request: Request) {
       message: 'Availability pattern created successfully',
     })
   } catch (error) {
-    console.error('Server error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -124,7 +122,6 @@ export async function GET(request: Request) {
     const { data: patterns, error } = await query.order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Database error:', error)
       return NextResponse.json(
         { error: 'Failed to fetch patterns' },
         { status: 500 }
@@ -136,7 +133,6 @@ export async function GET(request: Request) {
       patterns: patterns || [],
     })
   } catch (error) {
-    console.error('Server error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

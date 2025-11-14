@@ -107,7 +107,7 @@ export default function CreateSlotDrawer({
           try {
             meetingConfig = JSON.parse(meetingConfig)
           } catch (e) {
-            console.error('Failed to parse meeting_config:', e)
+            // Failed to parse meeting_config
           }
         }
         
@@ -259,7 +259,6 @@ export default function CreateSlotDrawer({
       onSuccess()
       onClose()
     } catch (error) {
-      console.error(`Error ${patternId ? 'updating' : 'creating'} availability pattern:`, error)
       showError('Failed to create availability pattern', 'Please try again.')
     } finally {
       setSubmitting(false)

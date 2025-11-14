@@ -84,8 +84,6 @@ export async function POST(request: NextRequest) {
       password: result.password,
     })
   } catch (error) {
-    console.error('Meeting generation error:', error)
-
     if (error instanceof MeetingServiceError) {
       return NextResponse.json(
         {
@@ -135,14 +133,11 @@ export async function GET(request: NextRequest) {
 
     const hasConnection = await meetingService.hasActiveConnection(whopUser.userId, provider)
 
-    console.log('hasConnection', hasConnection)
-
     return NextResponse.json({
       provider,
       connected: hasConnection,
     })
   } catch (error) {
-    console.error('Connection check error:', error)
     return NextResponse.json(
       { error: 'Failed to check connection status' },
       { status: 500 }

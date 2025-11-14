@@ -1,12 +1,12 @@
 # Meeting Notification Setup
 
-This application sends push notifications to users and admins 15 minutes and 2 minutes before scheduled meetings using Whop's notification system.
+This application sends push notifications to users and admins 24 hours, 2 hours, and 30 minutes before scheduled meetings using Whop's notification system.
 
 ## How It Works
 
 1. **Cron Job**: A cron job runs every minute to check for upcoming meetings
-2. **Time Windows**: The system checks if any meetings are starting in 15 minutes or 2 minutes
-3. **Notifications**: Sends push notifications to both the member and company admins
+2. **Time Windows**: The system checks if any meetings are starting in 24 hours, 2 hours, or 30 minutes
+3. **Notifications**: Sends push notifications to both the member and company admins simultaneously
 4. **Tracking**: Marks notifications as sent to prevent duplicates
 
 ## Setup Instructions
@@ -17,12 +17,13 @@ Run the migration to add notification tracking columns:
 
 ```sql
 -- Run this in your Supabase SQL Editor
--- File: supabase/migrations/20250108_000007_add_notification_tracking.sql
+-- File: supabase/migrations/20250109_000001_update_notification_timing.sql
 ```
 
 This adds:
-- `notification_15min_sent` (boolean) - Tracks if 15-minute notification was sent
-- `notification_2min_sent` (boolean) - Tracks if 2-minute notification was sent
+- `notification_24h_sent` (boolean) - Tracks if 24-hour notification was sent
+- `notification_2h_sent` (boolean) - Tracks if 2-hour notification was sent
+- `notification_30min_sent` (boolean) - Tracks if 30-minute notification was sent
 
 ### 2. Vercel Cron Job Setup
 
@@ -63,15 +64,21 @@ To enable deep linking to bookings when users click notifications:
 
 ## Notification Details
 
-### 15-Minute Reminder
+### 24-Hour Reminder
 - **Title**: "Meeting Reminder: [Meeting Title]"
-- **Content**: "Your meeting starts in 15 minutes at [time]"
+- **Content**: "Your meeting is scheduled for [date] at [time]"
 - **Sent to**: Member (if exists) + All company admins
 - **Deep link**: `/bookings/[bookingId]`
 
-### 2-Minute Reminder
+### 2-Hour Reminder
+- **Title**: "Meeting Reminder: [Meeting Title]"
+- **Content**: "Your meeting starts in 2 hours at [time]"
+- **Sent to**: Member (if exists) + All company admins
+- **Deep link**: `/bookings/[bookingId]`
+
+### 30-Minute Reminder
 - **Title**: "Meeting Starting Soon: [Meeting Title]"
-- **Content**: "Your meeting starts in 2 minutes!"
+- **Content**: "Your meeting starts in 30 minutes!"
 - **Sent to**: Member (if exists) + All company admins
 - **Deep link**: `/bookings/[bookingId]`
 
@@ -93,10 +100,10 @@ curl -H "Authorization: Bearer YOUR_CRON_SECRET" https://your-domain.com/api/not
 
 ### Test with Upcoming Meeting
 
-1. Create a booking that starts in 15-16 minutes
+1. Create a booking that starts in 24 hours, 2 hours, or 30 minutes (depending on which notification you want to test)
 2. Wait for the cron job to run (runs every minute)
 3. Check your Whop app notifications
-4. You should receive a notification
+4. You should receive a notification when the meeting is within the appropriate time window
 
 ## Troubleshooting
 
@@ -111,7 +118,7 @@ curl -H "Authorization: Bearer YOUR_CRON_SECRET" https://your-domain.com/api/not
 ### Duplicate Notifications
 
 The system tracks sent notifications using database flags. If you see duplicates:
-1. Check if `notification_15min_sent` and `notification_2min_sent` are being set
+1. Check if `notification_24h_sent`, `notification_2h_sent`, and `notification_30min_sent` are being set
 2. Verify the database migration ran successfully
 3. Check for multiple cron jobs running
 
@@ -133,8 +140,9 @@ Cron endpoint that checks for upcoming meetings and sends notifications.
   "message": "Notification check completed",
   "checked": 5,
   "sent": {
-    "15min": 2,
-    "2min": 1
+    "24h": 1,
+    "2h": 2,
+    "30min": 1
   }
 }
 ```

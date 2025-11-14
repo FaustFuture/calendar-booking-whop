@@ -26,7 +26,6 @@ export class RecordingFetchService {
       .single()
 
     if (error || !booking) {
-      console.error('Booking not found:', error)
       return
     }
 
@@ -45,7 +44,6 @@ export class RecordingFetchService {
     const meetingUrl = booking.meeting_url
 
     if (!meetingUrl) {
-      console.log('No meeting URL found for booking', bookingId)
       return
     }
 
@@ -56,7 +54,7 @@ export class RecordingFetchService {
         await this.fetchGoogleRecording(booking, meetingUrl, companyId)
       }
     } catch (error) {
-      console.error(`Failed to fetch recording for booking ${bookingId}:`, error)
+      // Failed to fetch recording
     }
   }
 
@@ -68,15 +66,11 @@ export class RecordingFetchService {
     // Example: https://zoom.us/j/1234567890 or https://us05web.zoom.us/j/1234567890
     const meetingIdMatch = meetingUrl.match(/\/j\/(\d+)/)
     if (!meetingIdMatch) {
-      console.error('Could not extract Zoom meeting ID from URL:', meetingUrl)
       return
     }
 
     const meetingId = meetingIdMatch[1]
 
-    // Wait a bit for recording to be processed (optional)
-    // Zoom usually processes recordings within a few minutes
-    console.log(`Fetching Zoom recording for meeting ${meetingId}...`)
 
     try {
       const recordings = await zoomRecordingService.fetchAndSaveRecordings(
@@ -86,16 +80,9 @@ export class RecordingFetchService {
         companyId
       )
 
-      if (recordings.length > 0) {
-        console.log(`Successfully fetched ${recordings.length} Zoom recording(s)`)
-      } else {
-        console.log('No Zoom recordings found yet (may still be processing)')
-      }
     } catch (error: any) {
       // Recording might not be ready yet
-      if (error.message?.includes('404')) {
-        console.log('Zoom recording not ready yet, will retry later')
-      } else {
+      if (!error.message?.includes('404')) {
         throw error
       }
     }
@@ -110,28 +97,18 @@ export class RecordingFetchService {
     const meetingCode = googleRecordingService.extractMeetingCode(meetingUrl)
 
     if (!meetingCode) {
-      console.error('Could not extract Google Meet code from URL:', meetingUrl)
       return
     }
 
-    console.log(`Fetching Google Meet recording for meeting ${meetingCode}...`)
-
     try {
-      const recordings = await googleRecordingService.fetchAndSaveRecordings(
+      await googleRecordingService.fetchAndSaveRecordings(
         booking.id,
         meetingCode,
         booking.admin_id,
         companyId
       )
-
-      if (recordings.length > 0) {
-        console.log(`Successfully fetched ${recordings.length} Google Meet recording(s)`)
-      } else {
-        console.log('No Google Meet recordings found yet')
-      }
     } catch (error: any) {
       // Recording might not be available yet or user doesn't have permissions
-      console.error('Failed to fetch Google Meet recording:', error.message)
     }
   }
 
@@ -159,11 +136,8 @@ export class RecordingFetchService {
       .is('meeting_url', 'not.null')
 
     if (error || !bookings) {
-      console.error('Failed to query bookings:', error)
       return
     }
-
-    console.log(`Polling ${bookings.length} completed bookings for recordings...`)
 
     for (const booking of bookings) {
       // Check if recordings already exist
@@ -184,8 +158,6 @@ export class RecordingFetchService {
       // Add delay to avoid rate limiting
       await new Promise(resolve => setTimeout(resolve, 1000))
     }
-
-    console.log('Polling complete')
   }
 }
 

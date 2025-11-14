@@ -37,12 +37,10 @@ export default function NotificationPoller({ companyId }: NotificationPollerProp
 
         if (response.ok) {
           const data = await response.json()
-          if (data.sent && (data.sent['15min'] > 0 || data.sent['2min'] > 0)) {
-            console.log('📬 Notifications sent via client poller:', data.sent)
-          }
+          // Notifications sent via client poller
         }
       } catch (error) {
-        console.error('Error checking notifications:', error)
+        // Error checking notifications
       }
     }
 

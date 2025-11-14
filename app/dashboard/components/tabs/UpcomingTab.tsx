@@ -77,7 +77,6 @@ export default function UpcomingTab({ roleOverride, companyId }: UpcomingTabProp
         showError('Failed to delete booking', error.error || 'An error occurred while deleting the booking.')
       }
     } catch (error) {
-      console.error('Error deleting booking:', error)
       showError('Failed to delete booking', 'Please try again.')
     }
   }
@@ -89,7 +88,7 @@ export default function UpcomingTab({ roleOverride, companyId }: UpcomingTabProp
       showSuccess('Link copied', 'Meeting link copied to clipboard')
       setTimeout(() => setCopiedId(null), 2000)
     } catch (error) {
-      console.error('Error copying link:', error)
+      // Error copying link
     }
   }
 
@@ -127,7 +126,6 @@ export default function UpcomingTab({ roleOverride, companyId }: UpcomingTabProp
         showError('Failed to finish meeting', error.error || 'An error occurred while updating the booking.')
       }
     } catch (error) {
-      console.error('Error finishing meeting:', error)
       showError('Failed to finish meeting', 'Please try again.')
     }
   }
@@ -160,7 +158,6 @@ export default function UpcomingTab({ roleOverride, companyId }: UpcomingTabProp
   // Show error if fetch failed (only once)
   useEffect(() => {
     if (error) {
-      console.error('Error loading bookings:', error)
       showError('Failed to load bookings', error.message || 'Please try again.')
     }
   }, [error, showError])
@@ -461,7 +458,7 @@ function BookingDetailsDrawer({ booking, isOpen, onClose, isAdmin, companyId, on
       showSuccess('Link copied', 'Meeting link copied to clipboard')
       setTimeout(() => setCopiedId(null), 2000)
     } catch (error) {
-      console.error('Error copying link:', error)
+      // Error copying link
     }
   }
 
@@ -507,7 +504,6 @@ function BookingDetailsDrawer({ booking, isOpen, onClose, isAdmin, companyId, on
         showError('Failed to finish meeting', error.error || 'An error occurred while updating the booking.')
       }
     } catch (error) {
-      console.error('Error finishing meeting:', error)
       showError('Failed to finish meeting', 'Please try again.')
     }
   }

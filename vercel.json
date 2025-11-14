@@ -12,6 +12,11 @@
       "path": "/api/recordings/fetch-delayed",
       "schedule": "* * * * *"
     }
-  ]
+  ],
+  "functions": {
+    "app/api/recordings/upload/route.ts": {
+      "maxDuration": 300
+    }
+  }
 }
 

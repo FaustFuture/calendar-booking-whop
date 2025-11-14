@@ -23,7 +23,6 @@ export async function updatePastBookingsStatus(): Promise<{
       .eq('status', 'upcoming')
 
     if (fetchError) {
-      console.error('Error fetching bookings:', fetchError)
       return { updated: 0, error: fetchError.message }
     }
 
@@ -52,14 +51,10 @@ export async function updatePastBookingsStatus(): Promise<{
       .in('id', bookingIds)
 
     if (updateError) {
-      console.error('Error updating past bookings:', updateError)
       return { updated: 0, error: updateError.message }
     }
-
-    console.log(`✅ Updated ${bookingIds.length} past bookings to completed status`)
     return { updated: bookingIds.length, error: null }
   } catch (error) {
-    console.error('Unexpected error updating past bookings:', error)
     return { updated: 0, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }

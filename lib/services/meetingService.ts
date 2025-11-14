@@ -59,7 +59,7 @@ export class MeetingService {
       .eq('id', connectionId)
 
     if (error) {
-      console.error('Failed to update OAuth connection:', error)
+      // Failed to update OAuth connection
     }
   }
 
@@ -237,7 +237,6 @@ export class MeetingService {
       .eq('is_active', true)
 
     if (error) {
-      console.error('Failed to fetch user connections:', error)
       return []
     }
 

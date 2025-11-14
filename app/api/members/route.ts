@@ -9,8 +9,6 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const companyId = searchParams.get('companyId')
 
-    console.log('companyId', companyId)
-
     // Require companyId for Whop multi-tenancy
     if (!companyId) {
       return NextResponse.json(
@@ -38,15 +36,11 @@ export async function GET(request: Request) {
         order: 'created_at',
         direction: 'asc',
       })) {
-
-        console.log('memberListResponse', memberListResponse.access_level)
-
         if (memberListResponse && memberListResponse.user) {
           allMembers.push(memberListResponse)
         }
       }
     } catch (error: any) {
-      console.error('[Members API] Error calling members.list:', error)
       throw new Error(`Failed to fetch members from Whop: ${error?.message || 'Unknown error'}`)
     }
 
@@ -96,7 +90,6 @@ export async function GET(request: Request) {
                 .eq('id', userId)
             }
           } catch (error) {
-            console.error(`[Members API] Error syncing user ${userId}:`, error)
             // Continue even if sync fails - we'll still return the member
           }
         }
@@ -114,7 +107,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ members: filteredMembers })
   } catch (error) {
-    console.error('Error fetching members:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }

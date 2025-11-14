@@ -38,7 +38,7 @@ export default function IntegrationsClient() {
     }
 
     if (error) {
-      console.error('OAuth error:', error)
+      // OAuth error
     }
   }, [searchParams])
 
@@ -49,7 +49,6 @@ export default function IntegrationsClient() {
         loadConnections()
         setConnecting(null)
       } else if (event.data?.type === 'oauth-error') {
-        console.error('OAuth error:', event.data.error)
         setConnecting(null)
         // Optionally show an error notification here
       }
@@ -66,7 +65,7 @@ export default function IntegrationsClient() {
       const data = await response.json()
       setConnections(data.connections || [])
     } catch (error) {
-      console.error('Failed to load connections:', error)
+      // Failed to load connections
     } finally {
       setLoading(false)
     }
@@ -105,7 +104,6 @@ export default function IntegrationsClient() {
         }
       }, 500)
     } catch (error) {
-      console.error(`Failed to connect ${provider}:`, error)
       setConnecting(null)
     }
   }
@@ -136,7 +134,6 @@ export default function IntegrationsClient() {
         showError('Disconnect Failed', 'Failed to disconnect account. Please try again.')
       }
     } catch (error) {
-      console.error('Failed to disconnect:', error)
       showError('Disconnect Failed', 'Failed to disconnect account. Please try again.')
     }
   }

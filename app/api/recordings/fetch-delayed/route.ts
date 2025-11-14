@@ -30,12 +30,6 @@ export async function GET(request: Request) {
     const windowStart = new Date(fifteenMinutesAgo.getTime() - 60 * 1000) // 1 minute before
     const windowEnd = new Date(fifteenMinutesAgo.getTime() + 60 * 1000) // 1 minute after
 
-    console.log('🎥 Checking for meetings that ended 15 minutes ago...', {
-      now: now.toISOString(),
-      windowStart: windowStart.toISOString(),
-      windowEnd: windowEnd.toISOString(),
-    })
-
     // Find completed bookings that:
     // 1. Ended approximately 15 minutes ago (within 2-minute window)
     // 2. Haven't had their 15-minute fetch yet
@@ -54,7 +48,6 @@ export async function GET(request: Request) {
       .not('meeting_url', 'is', null)
 
     if (fetchError) {
-      console.error('❌ Error fetching bookings:', fetchError)
       return NextResponse.json({ error: fetchError.message }, { status: 500 })
     }
 
@@ -88,8 +81,6 @@ export async function GET(request: Request) {
       })
     }
 
-    console.log(`📹 Found ${bookingsToFetch.length} booking(s) to fetch recordings for`)
-
     let fetched = 0
     let failed = 0
 
@@ -109,10 +100,8 @@ export async function GET(request: Request) {
         )
 
         fetched++
-        console.log(`✅ Fetched recordings for booking ${booking.id} (15-minute delayed)`)
       } catch (error) {
         failed++
-        console.error(`❌ Failed to fetch recordings for booking ${booking.id} (15-minute delayed):`, error)
         // Continue with other bookings even if one fails
       }
     }
@@ -124,7 +113,6 @@ export async function GET(request: Request) {
       failed,
     })
   } catch (error) {
-    console.error('❌ Error in 15-minute delayed recording fetch:', error)
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : 'Internal server error',

@@ -63,21 +63,18 @@ export async function GET(request: NextRequest) {
 
     // If user doesn't exist, try to sync from Whop
     if (!existingUser || userCheckError) {
-      console.log('User not found in Supabase, attempting to sync from Whop...')
       try {
         const whopUser = await requireWhopAuth(companyId, true)
         await syncWhopUserToSupabase(whopUser)
         
         // Verify userId matches
         if (whopUser.userId !== userId) {
-          console.error('User ID mismatch:', { stateUserId: userId, whopUserId: whopUser.userId })
           const errorUrl = companyId
             ? `/auth/oauth-error?error=invalid_user&provider=zoom&companyId=${companyId}`
             : `/auth/oauth-error?error=invalid_user&provider=zoom`
           return NextResponse.redirect(new URL(errorUrl, request.url))
         }
       } catch (authError) {
-        console.error('Failed to sync user from Whop:', authError)
         const errorUrl = companyId
           ? `/auth/oauth-error?error=user_not_found&provider=zoom&companyId=${companyId}&message=User not found. Please ensure you are logged in and try again.`
           : `/auth/oauth-error?error=user_not_found&provider=zoom&message=User not found. Please ensure you are logged in and try again.`
@@ -119,7 +116,6 @@ export async function GET(request: NextRequest) {
         .eq('id', existingConnection.id)
 
       if (updateError) {
-        console.error('Failed to update OAuth connection:', updateError)
         return NextResponse.redirect(
           new URL(
             `/dashboard/${companyId}/settings/integrations?error=database_error&provider=zoom`,
@@ -145,7 +141,6 @@ export async function GET(request: NextRequest) {
         })
 
       if (insertError) {
-        console.error('Failed to create OAuth connection:', insertError)
         return NextResponse.redirect(
           new URL(
             `/dashboard/${companyId}/settings/integrations?error=database_error&provider=zoom`,
@@ -160,14 +155,6 @@ export async function GET(request: NextRequest) {
       new URL(`/auth/oauth-success?provider=zoom&companyId=${companyId}`, request.url)
     )
   } catch (error) {
-    console.error('Zoom OAuth callback error:', error)
-    
-    // Log detailed error information for debugging
-    if (error instanceof Error) {
-      console.error('Error message:', error.message)
-      console.error('Error stack:', error.stack)
-    }
-    
     // Try to extract companyId from URL state parameter for error redirect
     const searchParams = request.nextUrl.searchParams
     const state = searchParams.get('state')

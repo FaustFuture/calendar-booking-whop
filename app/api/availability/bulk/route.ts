@@ -62,7 +62,6 @@ export async function POST(request: Request) {
       .select()
 
     if (error) {
-      console.error('Database error:', error)
       return NextResponse.json(
         { error: 'Failed to create slots', details: error.message },
         { status: 500 }
@@ -75,7 +74,6 @@ export async function POST(request: Request) {
       slots: data,
     })
   } catch (error) {
-    console.error('Server error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

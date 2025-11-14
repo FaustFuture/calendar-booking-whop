@@ -26,11 +26,8 @@ export interface WhopAuthResult {
  */
 export async function verifyWhopUser(companyId: string, requireAccess = false): Promise<WhopAuthResult> {
   try {
-    console.log('[Whop Auth] Starting verification for companyId:', companyId, 'requireAccess:', requireAccess)
-
     // Verify WHOP_API_KEY is set for authenticated API calls
     if (!process.env.WHOP_API_KEY) {
-      console.error('[Whop Auth] ❌ WHOP_API_KEY not set - cannot verify user access')
       return {
         success: false,
         error: 'Server configuration error: WHOP_API_KEY not set'
@@ -44,9 +41,7 @@ export async function verifyWhopUser(companyId: string, requireAccess = false): 
     try {
       const result = await whopsdk.verifyUserToken(headersList)
       userId = result.userId
-      console.log('[Whop Auth] User token verified, userId:', userId)
     } catch (error) {
-      console.error('[Whop Auth] Token verification failed:', error instanceof Error ? error.message : error)
       return {
         success: false,
         error: 'Whop user token not found. Please ensure you are accessing this app through the Whop platform.'
@@ -54,7 +49,6 @@ export async function verifyWhopUser(companyId: string, requireAccess = false): 
     }
 
     if (!userId) {
-      console.error('[Whop Auth] No user ID found after token verification')
       return {
         success: false,
         error: 'Authentication required'
@@ -62,7 +56,6 @@ export async function verifyWhopUser(companyId: string, requireAccess = false): 
     }
 
     if (!companyId) {
-      console.error('[Whop Auth] No company ID provided')
       return {
         success: false,
         error: 'Company ID is required'
@@ -71,23 +64,17 @@ export async function verifyWhopUser(companyId: string, requireAccess = false): 
 
     const effectiveCompanyId = companyId
 
-    console.log('[Whop Auth] Using effective company ID:', effectiveCompanyId)
-
     // Fetch user data and company info
-    console.log('[Whop Auth] Fetching company and user data...')
     const [company, user] = await Promise.all([
       whopsdk.companies.retrieve(effectiveCompanyId).catch((err) => {
-        console.error('[Whop Auth] Failed to retrieve company:', err)
         return null
       }),
       whopsdk.users.retrieve(userId).catch((err) => {
-        console.error('[Whop Auth] Failed to retrieve user:', err)
         return null
       })
     ])
 
     if (!company) {
-      console.error('[Whop Auth] Company not found:', effectiveCompanyId)
       return {
         success: false,
         error: `Company not found: ${effectiveCompanyId}`
@@ -95,7 +82,6 @@ export async function verifyWhopUser(companyId: string, requireAccess = false): 
     }
 
     if (!user) {
-      console.error('[Whop Auth] User not found:', userId)
       return {
         success: false,
         error: `User not found: ${userId}`
@@ -107,30 +93,17 @@ export async function verifyWhopUser(companyId: string, requireAccess = false): 
     let accessCheckFailed = false
 
     if (requireAccess) {
-      console.log('[Whop Auth] Checking company access...')
-
       try {
         access = await whopsdk.users.checkAccess(effectiveCompanyId, { id: userId })
 
-        console.log('[Whop Auth] Access check result:', {
-          userId,
-          companyId: effectiveCompanyId,
-          hasAccess: access?.has_access,
-          accessLevel: (access as any)?.access_level
-        })
-
         // Deny access if check succeeded but returned has_access: false
         if (access && !access.has_access) {
-          console.error('[Whop Auth] ❌ ACCESS DENIED: User does not have access to company')
           return {
             success: false,
             error: `You do not have access to this company`
           }
         }
       } catch (error) {
-        console.error('[Whop Auth] Failed to check access:', error)
-        console.warn('[Whop Auth] ⚠️ Access check failed - this may indicate an invalid WHOP_API_KEY')
-        console.warn('[Whop Auth] Allowing user through with graceful degradation')
         accessCheckFailed = true
       }
     }
@@ -138,26 +111,14 @@ export async function verifyWhopUser(companyId: string, requireAccess = false): 
     // Determine role - default to member (more restrictive) for security
     // In Whop apps, if you can access the app, you're either an admin or customer
     // We'll check access level to determine the actual role
-    console.log('[Whop Auth] Determining user role...')
     let role: UserRole = 'member' // Default to member for security
 
     // Try to determine role more accurately if possible
     try {
       role = await determineUserRole(userId, effectiveCompanyId, access, requireAccess)
     } catch (error) {
-      console.warn('[Whop Auth] Role determination failed, defaulting to member:', error)
+      // Default to member on error
     }
-
-    console.log('[Whop Auth] User role determined:', role)
-
-    console.log('[Whop Auth] ✅ Authentication successful:', {
-      userId,
-      companyId: effectiveCompanyId,
-      role,
-      email: (user as any).email,
-      name: (user as any).username,
-      requireAccessCheckPassed: requireAccess
-    })
 
     return {
       success: true,
@@ -171,7 +132,6 @@ export async function verifyWhopUser(companyId: string, requireAccess = false): 
       }
     }
   } catch (error) {
-    console.error('[Whop Auth] ❌ Unexpected error during verification:', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown authentication error'
@@ -190,46 +150,28 @@ async function determineUserRole(
   accessWasChecked: boolean = false
 ): Promise<UserRole> {
   try {
-    console.log('[Whop Auth] Determining role for user:', userId, 'in company:', companyId)
-
     // Check if user is company owner
     const company = await whopsdk.companies.retrieve(companyId).catch(err => {
-      console.error('[Whop Auth] Failed to retrieve company for owner check:', err)
       return null
     })
 
     if (company) {
-      console.log('[Whop Auth] Company owner_id:', (company as any).owner_id, 'vs userId:', userId)
-
       // If user owns the company, they're an admin
       if ((company as any).owner_id === userId) {
-        console.log('[Whop Auth] ✅ User is company owner → admin role')
         return 'admin'
       }
-    } else {
-      console.warn('[Whop Auth] Could not retrieve company for owner check')
     }
 
     // If access wasn't checked yet, perform the check now to determine role accurately
     if (!access && !accessWasChecked) {
-      console.log('[Whop Auth] Access not checked yet - performing access check to determine role')
-
       // Only perform check if API key is configured
       if (process.env.WHOP_API_KEY) {
         try {
           access = await whopsdk.users.checkAccess(companyId, { id: userId })
-          console.log('[Whop Auth] Access check for role determination:', {
-            access_level: (access as any)?.access_level,
-            has_access: access?.has_access
-          })
         } catch (error) {
-          console.warn('[Whop Auth] Failed to check access for role determination:', error)
-          console.warn('[Whop Auth] Defaulting to member role for security')
           return 'member'
         }
       } else {
-        console.warn('[Whop Auth] ⚠️ WHOP_API_KEY not set, cannot determine role accurately')
-        console.warn('[Whop Auth] Defaulting to member role for security')
         return 'member'
       }
     }
@@ -238,30 +180,22 @@ async function determineUserRole(
     // According to Whop docs, access_level can be: "customer", "admin", or "no_access"
     // Admin access_level means the user is a team member of the company
     if (access) {
-      console.log('[Whop Auth] Checking access object for admin permissions:', {
-        access_level: (access as any).access_level,
-        has_access: access.has_access
-      })
 
       // Check if user has admin access_level (team member)
       if ((access as any).access_level === 'admin') {
-        console.log('[Whop Auth] ✅ User has admin access_level → admin role')
         return 'admin'
       }
 
       // If access level is explicitly 'customer', respect that
       if ((access as any).access_level === 'customer') {
-        console.log('[Whop Auth] ℹ️ User has customer access_level → member role')
         return 'member'
       }
     }
 
     // For Whop apps: default to member role for security
     // Only grant admin role if explicitly verified above
-    console.log('[Whop Auth] ℹ️ No explicit role determined - defaulting to member role for security')
     return 'member'
   } catch (error) {
-    console.error('[Whop Auth] Error determining user role:', error)
     return 'member' // Default to more restrictive role on error
   }
 }
@@ -291,7 +225,6 @@ export async function syncWhopUserToSupabase(whopUser: WhopAuthUser): Promise<vo
   try {
     const supabase = await createClient()
 
-    console.log('[Sync] Syncing Whop user to Supabase:', whopUser.userId)
 
     // Check if user exists
     const { data: existingUser, error: selectError } = await supabase
@@ -310,21 +243,17 @@ export async function syncWhopUserToSupabase(whopUser: WhopAuthUser): Promise<vo
 
     if (existingUser) {
       // Update existing user
-      console.log('[Sync] Updating existing user:', whopUser.userId)
       const { error: updateError } = await supabase
         .from('users')
         .update(userData)
         .eq('id', whopUser.userId)
 
       if (updateError) {
-        console.error('[Sync] ❌ Failed to update user:', updateError)
         throw new Error(`Failed to update user in database: ${updateError.message}`)
       }
 
-      console.log('[Sync] ✅ User updated successfully')
     } else {
       // Insert new user
-      console.log('[Sync] Inserting new user:', whopUser.userId)
       const { error: insertError } = await supabase
         .from('users')
         .insert({
@@ -333,14 +262,10 @@ export async function syncWhopUserToSupabase(whopUser: WhopAuthUser): Promise<vo
         })
 
       if (insertError) {
-        console.error('[Sync] ❌ Failed to insert user:', insertError)
         throw new Error(`Failed to insert user into database: ${insertError.message}`)
       }
-
-      console.log('[Sync] ✅ User inserted successfully')
     }
   } catch (error) {
-    console.error('[Sync] ❌ Error syncing Whop user to Supabase:', error)
     // THROW the error - syncing IS critical for operations like bookings
     throw error
   }
@@ -366,7 +291,6 @@ export async function getWhopUserFromHeaders(): Promise<{ userId: string } | nul
     const { userId } = await whopsdk.verifyUserToken(headersList)
     return userId ? { userId } : null
   } catch (error) {
-    console.error('Error getting Whop user from headers:', error)
     return null
   }
 }

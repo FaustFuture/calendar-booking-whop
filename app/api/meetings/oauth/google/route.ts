@@ -39,7 +39,6 @@ export async function GET(request: NextRequest) {
       state,
     })
   } catch (error) {
-    console.error('Google OAuth initiation error:', error)
     return NextResponse.json(
       { error: 'Failed to initiate Google OAuth' },
       { status: 500 }

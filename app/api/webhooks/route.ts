@@ -21,5 +21,4 @@ export async function POST(request: NextRequest): Promise<Response> {
 async function handlePaymentSucceeded(payment: Payment) {
   // This is a placeholder for a potentially long running operation
   // In a real scenario, you might need to fetch user data, update a database, etc.
-  console.log("[PAYMENT SUCCEEDED]", payment);
 }
