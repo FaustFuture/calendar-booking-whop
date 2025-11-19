@@ -54,6 +54,8 @@ export async function POST(request: Request) {
       .from('availability_patterns')
       .insert({
         company_id: companyId,
+        created_by: whopUser.userId, // Track who created the pattern for Google Calendar conflict checking
+        timezone: body.timezone || 'UTC', // Store admin's timezone to prevent booking conflicts
         title: commonData.title,
         description: commonData.description || null,
         duration_minutes: commonData.duration_minutes,

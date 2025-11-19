@@ -8,6 +8,8 @@ import PastTab from './tabs/PastTab'
 import RecordingsTab from './tabs/RecordingsTab'
 import CreateSlotDrawer from './modals/CreateSlotDrawer'
 import RoleSwitcher from './RoleSwitcher'
+import ReconnectGoogleBanner from './banners/ReconnectGoogleBanner'
+import TimezoneDebugger from './shared/TimezoneDebugger'
 import { AvailabilityPattern } from '@/lib/types/database'
 import { updatePastBookingsStatus } from '@/lib/utils/bookings'
 import { useWhopUser } from '@/lib/context/WhopUserContext'
@@ -96,6 +98,9 @@ export default function DashboardTabs({ companyId }: DashboardTabsProps) {
           />
         </div>
       )}
+
+      {/* Google Calendar Reconnect Banner - Only show for admins */}
+      {isAdmin && <ReconnectGoogleBanner companyId={companyId} />}
 
       {/* Availability Header - Only show on availability tab */}
       {activeTab === 'availability' && (
@@ -211,6 +216,9 @@ export default function DashboardTabs({ companyId }: DashboardTabsProps) {
           weekly_schedule: editingPattern.weekly_schedule,
         } : undefined}
       />
+
+      {/* Timezone Debugger - Shows current detected timezone */}
+      <TimezoneDebugger />
     </div>
   )
 }

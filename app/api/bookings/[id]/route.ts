@@ -65,7 +65,7 @@ export async function PATCH(
     // Get the booking to check ownership and company
     const { data: booking, error: fetchError } = await supabase
       .from('bookings')
-      .select('member_id, company_id, status')
+      .select('member_id, company_id, status, calendar_event_id, booking_start_time, booking_end_time, title, guest_name, guest_email')
       .eq('id', id)
       .single()
 
@@ -92,8 +92,128 @@ export async function PATCH(
     // Extract companyId from body (used for auth only, not a DB column)
     const { companyId: _, ...updateData } = body
 
-    // Check if status is being changed to 'completed'
+    // Check if status is being changed to 'completed' or 'cancelled'
     const isCompleting = updateData.status === 'completed' && booking.status !== 'completed'
+    const isCancelling = updateData.status === 'cancelled' && booking.status !== 'cancelled'
+
+    // Check if meeting time is being rescheduled
+    const isRescheduling =
+      (updateData.booking_start_time && updateData.booking_start_time !== booking.booking_start_time) ||
+      (updateData.booking_end_time && updateData.booking_end_time !== booking.booking_end_time)
+
+    // Delete Google Calendar event if booking is being cancelled
+    if (isCancelling && booking.calendar_event_id) {
+      try {
+        console.log('🗑️ Booking cancelled - deleting Google Calendar event...')
+        const { meetingService } = await import('@/lib/services/meetingService')
+
+        // First, get an active Google OAuth connection
+        const { data: oauthConnection } = await supabase
+          .from('oauth_connections')
+          .select('user_id')
+          .eq('provider', 'google')
+          .eq('is_active', true)
+          .limit(1)
+          .single()
+
+        // Find an admin user who has an active Google OAuth connection
+        let adminUserId: string | null = null
+
+        if (oauthConnection?.user_id) {
+          // Verify this user is an admin
+          const { data: adminUser } = await supabase
+            .from('users')
+            .select('id')
+            .eq('id', oauthConnection.user_id)
+            .eq('role', 'admin')
+            .single()
+
+          if (adminUser) {
+            adminUserId = adminUser.id
+          }
+        }
+
+        if (adminUserId) {
+          await meetingService.deleteGoogleCalendarEvent(
+            adminUserId,
+            booking.calendar_event_id
+          )
+          console.log('✅ Google Calendar event deleted')
+        } else {
+          console.warn('⚠️ No admin with active Google OAuth connection found - skipping calendar deletion')
+        }
+      } catch (error) {
+        console.error('❌ Failed to delete Google Calendar event:', error)
+        // Don't fail the booking cancellation if calendar deletion fails
+      }
+    }
+
+    // Update Google Calendar event if meeting is being rescheduled
+    if (isRescheduling && booking.calendar_event_id && whopUser.role === 'admin') {
+      try {
+        console.log('📅 Meeting rescheduled - updating Google Calendar event...')
+        const { meetingService } = await import('@/lib/services/meetingService')
+
+        // First, get all active Google OAuth connections
+        const { data: oauthConnections } = await supabase
+          .from('oauth_connections')
+          .select('user_id')
+          .eq('provider', 'google')
+          .eq('is_active', true)
+          .limit(1)
+          .single()
+
+        // Find an admin user who has an active Google OAuth connection
+        let adminUserId: string | null = null
+
+        if (oauthConnections?.user_id) {
+          // Verify this user is an admin
+          const { data: adminUser } = await supabase
+            .from('users')
+            .select('id')
+            .eq('id', oauthConnections.user_id)
+            .eq('role', 'admin')
+            .single()
+
+          if (adminUser) {
+            adminUserId = adminUser.id
+          }
+        }
+
+        if (adminUserId) {
+          const calendarUpdates: any = {}
+
+          if (updateData.booking_start_time) {
+            calendarUpdates.startTime = updateData.booking_start_time
+          }
+
+          if (updateData.booking_end_time) {
+            calendarUpdates.endTime = updateData.booking_end_time
+          }
+
+          if (updateData.title) {
+            calendarUpdates.title = updateData.title
+          }
+
+          // Add timezone if provided by client
+          if (body.timezone) {
+            calendarUpdates.timezone = body.timezone
+          }
+
+          await meetingService.updateGoogleCalendarEvent(
+            adminUserId,
+            booking.calendar_event_id,
+            calendarUpdates
+          )
+          console.log('✅ Google Calendar event updated successfully')
+        } else {
+          console.warn('⚠️ No admin with active Google OAuth connection found - skipping calendar update')
+        }
+      } catch (error) {
+        console.error('❌ Failed to update Google Calendar event:', error)
+        // Don't fail the booking update if calendar update fails
+      }
+    }
 
     const { data, error } = await supabase
       .from('bookings')
@@ -107,11 +227,45 @@ export async function PATCH(
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
+    // Send notification to user if meeting was rescheduled
+    if (isRescheduling && whopUser.role === 'admin' && booking.member_id) {
+      try {
+        const { notificationService } = await import('@/lib/services/notificationService')
+
+        // Format the new time nicely
+        const newStartTime = updateData.booking_start_time || booking.booking_start_time
+        const newStartDate = new Date(newStartTime)
+        const formattedTime = newStartDate.toLocaleString('en-US', {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        })
+
+        await notificationService.sendNotificationToUser(
+          booking.member_id,
+          companyId,
+          '📅 Meeting Rescheduled',
+          `Your meeting "${booking.title}" has been rescheduled to ${formattedTime}. Please check your updated calendar for details.`,
+          undefined,
+          false
+        )
+
+        console.log('✅ Reschedule notification sent to user')
+      } catch (error) {
+        console.error('❌ Failed to send reschedule notification:', error)
+        // Don't fail the booking update if notification fails
+      }
+    }
+
     // Phase 1: Fetch recordings immediately when user manually finishes meeting
     if (isCompleting) {
       try {
         const { recordingFetchService } = await import('@/lib/services/recordingFetchService')
-        
+
         // Mark immediate fetch attempt
         await supabase
           .from('bookings')
@@ -161,7 +315,7 @@ export async function DELETE(
     // Get the booking to check ownership
     const { data: booking, error: fetchError } = await supabase
       .from('bookings')
-      .select('member_id, company_id')
+      .select('member_id, company_id, calendar_event_id')
       .eq('id', id)
       .single()
 
@@ -183,6 +337,53 @@ export async function DELETE(
         { error: 'Booking does not belong to this company' },
         { status: 403 }
       )
+    }
+
+    // Delete Google Calendar event if it exists
+    if (booking.calendar_event_id) {
+      try {
+        console.log('🗑️ Booking deleted - deleting Google Calendar event...')
+        const { meetingService } = await import('@/lib/services/meetingService')
+
+        // First, get an active Google OAuth connection
+        const { data: oauthConnection } = await supabase
+          .from('oauth_connections')
+          .select('user_id')
+          .eq('provider', 'google')
+          .eq('is_active', true)
+          .limit(1)
+          .single()
+
+        // Find an admin user who has an active Google OAuth connection
+        let adminUserId: string | null = null
+
+        if (oauthConnection?.user_id) {
+          // Verify this user is an admin
+          const { data: adminUser } = await supabase
+            .from('users')
+            .select('id')
+            .eq('id', oauthConnection.user_id)
+            .eq('role', 'admin')
+            .single()
+
+          if (adminUser) {
+            adminUserId = adminUser.id
+          }
+        }
+
+        if (adminUserId) {
+          await meetingService.deleteGoogleCalendarEvent(
+            adminUserId,
+            booking.calendar_event_id
+          )
+          console.log('✅ Google Calendar event deleted')
+        } else {
+          console.warn('⚠️ No admin with active Google OAuth connection found - skipping calendar deletion')
+        }
+      } catch (error) {
+        console.error('❌ Failed to delete Google Calendar event:', error)
+        // Don't fail the booking deletion if calendar deletion fails
+      }
     }
 
     const { error } = await supabase

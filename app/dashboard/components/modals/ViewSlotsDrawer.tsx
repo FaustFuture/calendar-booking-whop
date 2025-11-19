@@ -5,15 +5,18 @@ import { Calendar, Clock, User, Video, Link as LinkIcon, MapPin, Upload, X, File
 import { createClient } from '@/lib/supabase/client'
 import { AvailabilityPattern } from '@/lib/types/database'
 import { format, addDays, startOfWeek, isSameDay, parse, setHours, setMinutes } from 'date-fns'
+import { fromZonedTime, formatInTimeZone } from 'date-fns-tz'
 import { Drawer, DrawerHeader, DrawerContent, DrawerFooter } from '../shared/Drawer'
 import { useToast } from '@/lib/context/ToastContext'
 import { useWhopUser } from '@/lib/context/WhopUserContext'
+import { getUserTimezone, getTimezoneLabel } from '@/lib/utils/timezone'
 
 interface Slot {
   id: string // Format: pattern_id:YYYY-MM-DD:HH:mm
   start_time: string
   end_time: string
   is_booked: boolean
+  is_conflict?: boolean // True if this slot conflicts with a Google Calendar event
 }
 
 interface ViewSlotsDrawerProps {
@@ -46,6 +49,7 @@ export default function ViewSlotsDrawer({
   const [guestEmail, setGuestEmail] = useState('')
   const [notes, setNotes] = useState('')
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [calendarBusyTimes, setCalendarBusyTimes] = useState<Array<{ start: string; end: string }>>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isGuest = !currentUserId  // Determine from passed prop
   const supabase = createClient()
@@ -179,6 +183,51 @@ export default function ViewSlotsDrawer({
           .map(booking => new Date(booking.booking_start_time).toISOString())
       )
 
+      // Fetch Google Calendar events for conflict checking
+      let busyTimes: Array<{ start: string; end: string }> = []
+      try {
+        const startDate = format(currentWeekStart, 'yyyy-MM-dd')
+        const endDate = format(addDays(currentWeekStart, 6), 'yyyy-MM-dd')
+
+        console.log('[Frontend] Calling calendar events API...')
+        const calendarResponse = await fetch(
+          `/api/calendar/events?companyId=${companyId}&patternId=${pattern.id}&startDate=${startDate}&endDate=${endDate}`
+        )
+
+        console.log('[Frontend] Calendar API response status:', calendarResponse.status)
+
+        if (calendarResponse.ok) {
+          const calendarData = await calendarResponse.json()
+          console.log('[Frontend] Calendar API response:', calendarData)
+          busyTimes = calendarData.busyTimes || []
+          setCalendarBusyTimes(busyTimes)
+        } else {
+          const errorData = await calendarResponse.json()
+          console.log('[Frontend] Calendar API error:', errorData)
+        }
+      } catch (error) {
+        console.error('[Frontend] Failed to fetch calendar events:', error)
+        // Continue without calendar conflict checking
+      }
+
+      // Function to check if a slot conflicts with calendar events
+      const hasCalendarConflict = (slotStart: string, slotEnd: string): boolean => {
+        const slotStartTime = new Date(slotStart).getTime()
+        const slotEndTime = new Date(slotEnd).getTime()
+
+        return busyTimes.some(busyTime => {
+          const busyStartTime = new Date(busyTime.start).getTime()
+          const busyEndTime = new Date(busyTime.end).getTime()
+
+          // Check for any overlap between slot and busy time
+          return (
+            (slotStartTime >= busyStartTime && slotStartTime < busyEndTime) || // Slot starts during busy time
+            (slotEndTime > busyStartTime && slotEndTime <= busyEndTime) ||     // Slot ends during busy time
+            (slotStartTime <= busyStartTime && slotEndTime >= busyEndTime)     // Slot completely covers busy time
+          )
+        })
+      }
+
       // Get current time for filtering past slots
       const now = new Date()
 
@@ -191,7 +240,8 @@ export default function ViewSlotsDrawer({
         })
         .map(slot => ({
           ...slot,
-          is_booked: bookedTimeSlots.has(new Date(slot.start_time).toISOString())
+          is_booked: bookedTimeSlots.has(new Date(slot.start_time).toISOString()),
+          is_conflict: hasCalendarConflict(slot.start_time, slot.end_time)
         }))
 
       setSlots(slotsWithBookingStatus)
@@ -232,6 +282,7 @@ export default function ViewSlotsDrawer({
         status: 'upcoming',
         booking_start_time: selectedSlot.start_time,
         booking_end_time: selectedSlot.end_time,
+        timezone: getUserTimezone(), // Add user's timezone
         notes: notes.trim() || undefined,
       }
 
@@ -382,9 +433,10 @@ export default function ViewSlotsDrawer({
     }
   }
 
-  // Group slots by day
+  // Group slots by day (use pattern timezone for grouping)
+  const patternTimezone = pattern?.timezone || 'UTC'
   const slotsByDay = slots.reduce((acc, slot) => {
-    const day = format(new Date(slot.start_time), 'yyyy-MM-dd')
+    const day = formatInTimeZone(new Date(slot.start_time), patternTimezone, 'yyyy-MM-dd')
     if (!acc[day]) acc[day] = []
     acc[day].push(slot)
     return acc
@@ -402,7 +454,7 @@ export default function ViewSlotsDrawer({
         {pattern.description && (
           <p className="text-zinc-400 text-sm mb-3">{pattern.description}</p>
         )}
-        <div className="flex items-center gap-4 text-sm">
+        <div className="flex items-center gap-4 text-sm flex-wrap">
           <span className="flex items-center gap-1.5 text-zinc-300">
             <Clock className="w-4 h-4 text-zinc-400" />
             {pattern.duration_minutes} min
@@ -412,6 +464,7 @@ export default function ViewSlotsDrawer({
             {meetingDisplay.label}
           </span>
         </div>
+
       </DrawerHeader>
 
       <DrawerContent>
@@ -453,27 +506,33 @@ export default function ViewSlotsDrawer({
               {Object.entries(slotsByDay).map(([day, daySlots]) => (
                 <div key={day}>
                   <h3 className="text-white font-semibold mb-3">
-                    {format(new Date(day), 'EEEE, MMMM d')}
+                    {formatInTimeZone(new Date(daySlots[0].start_time), patternTimezone, 'EEEE, MMMM d')}
                   </h3>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                    {daySlots.map((slot) => (
-                      <button
-                        key={slot.id}
-                        onClick={() => !slot.is_booked && setSelectedSlot(slot)}
-                        disabled={slot.is_booked}
-                        className={`
-                          p-3 rounded-lg border text-sm font-medium transition-all
-                          ${slot.is_booked
-                            ? 'bg-zinc-800/50 border-zinc-700/50 text-zinc-600 cursor-not-allowed'
-                            : selectedSlot?.id === slot.id
-                            ? 'bg-emerald-500 border-emerald-500 text-white'
-                            : 'bg-zinc-800 border-zinc-700 text-white hover:border-emerald-500 hover:bg-zinc-700'
-                          }
-                        `}
-                      >
-                        {format(new Date(slot.start_time), 'h:mm a')}
-                      </button>
-                    ))}
+                    {daySlots.map((slot) => {
+                      const isUnavailable = slot.is_booked || slot.is_conflict
+                      return (
+                        <button
+                          key={slot.id}
+                          onClick={() => !isUnavailable && setSelectedSlot(slot)}
+                          disabled={isUnavailable}
+                          className={`
+                            p-3 rounded-lg border text-sm font-medium transition-all relative
+                            ${isUnavailable
+                              ? 'bg-zinc-800/50 border-zinc-700/50 text-zinc-600 cursor-not-allowed'
+                              : selectedSlot?.id === slot.id
+                              ? 'bg-emerald-500 border-emerald-500 text-white'
+                              : 'bg-zinc-800 border-zinc-700 text-white hover:border-emerald-500 hover:bg-zinc-700'
+                            }
+                          `}
+                        >
+                          <div>{formatInTimeZone(new Date(slot.start_time), patternTimezone, 'h:mm a')}</div>
+                          {/* {slot.is_conflict && !slot.is_booked && (
+                            <div className="text-xs text-zinc-500 mt-0.5">Busy</div>
+                          )} */}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
               ))}
@@ -488,10 +547,10 @@ export default function ViewSlotsDrawer({
             <div className="space-y-4">
             {/* Selected time info */}
             <div className="text-sm">
-              <p className="text-zinc-400 mb-1">Selected time:</p>
+              <p className="text-zinc-400 mb-1">Selected time ({getTimezoneLabel(patternTimezone)}):</p>
               <p className="text-white font-semibold">
-                {format(new Date(selectedSlot.start_time), 'EEEE, MMMM d, yyyy')} at{' '}
-                {format(new Date(selectedSlot.start_time), 'h:mm a')}
+                {formatInTimeZone(new Date(selectedSlot.start_time), patternTimezone, 'EEEE, MMMM d, yyyy')} at{' '}
+                {formatInTimeZone(new Date(selectedSlot.start_time), patternTimezone, 'h:mm a')}
               </p>
             </div>
 

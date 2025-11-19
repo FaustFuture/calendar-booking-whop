@@ -106,6 +106,7 @@ export async function PUT(
         'start_date',
         'end_date',
         'weekly_schedule',
+        'timezone',
         'is_active'
       ]
       

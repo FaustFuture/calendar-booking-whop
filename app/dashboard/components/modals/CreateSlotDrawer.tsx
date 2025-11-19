@@ -10,6 +10,7 @@ import SlotsPreviewCount from '../shared/SchedulePicker/SlotsPreviewCount'
 import SkeletonLoader from '../shared/SkeletonLoader'
 import { useToast } from '@/lib/context/ToastContext'
 import { useConfirm } from '@/lib/context/ConfirmDialogContext'
+import { getUserTimezone } from '@/lib/utils/timezone'
 
 interface CreateSlotDrawerProps {
   isOpen: boolean
@@ -246,7 +247,12 @@ export default function CreateSlotDrawer({
       const response = await fetch(url, {
         method: patternId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ commonData, scheduleData, companyId }),
+        body: JSON.stringify({
+          commonData,
+          scheduleData,
+          timezone: getUserTimezone(), // Save admin's timezone to prevent booking conflicts
+          companyId
+        }),
       })
 
       const result = await response.json()

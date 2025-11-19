@@ -240,11 +240,18 @@ export async function POST(request: Request) {
               startTime: startTime,
               endTime: endTime,
               attendees: attendeeEmails,
+              timezone: body.timezone, // Use timezone from client if provided
               enableRecording: meetingData.meeting_config?.enableRecording ?? true, // Enable recording by default
             }
           )
 
           meetingUrl = meetingResult.meetingUrl
+
+          // Store calendar event ID for Google Meet bookings (for later deletion/sync)
+          if (meetingData.meeting_type === 'google_meet' && meetingResult.meetingId) {
+            body.calendar_event_id = meetingResult.meetingId
+            console.log('📅 Google Calendar event created:', meetingResult.meetingId)
+          }
         } catch (error) {
           // Continue with booking creation but without meeting URL
           // This prevents booking creation from failing if meeting generation fails

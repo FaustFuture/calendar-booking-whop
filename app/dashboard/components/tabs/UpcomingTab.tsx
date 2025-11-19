@@ -2,10 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import useSWR from 'swr'
-import { Plus, Calendar, User as UserIcon, ExternalLink, Copy, Check, ChevronDown, ChevronUp, Video, Link as LinkIcon, MapPin, Clock, Trash2, CheckCircle, File } from 'lucide-react'
+import { Plus, Calendar, User as UserIcon, ExternalLink, Copy, Check, ChevronDown, ChevronUp, Video, Link as LinkIcon, MapPin, Clock, Trash2, CheckCircle, File, Edit3 } from 'lucide-react'
 import { BookingWithRelations } from '@/lib/types/database'
 import { format } from 'date-fns'
+import { formatInTimeZone } from 'date-fns-tz'
+import { getUserTimezone, getTimezoneLabel } from '@/lib/utils/timezone'
 import CreateBookingDrawer from '../modals/CreateBookingDrawer'
+import RescheduleBookingModal from '../modals/RescheduleBookingModal'
 import { BookingSkeleton } from '../shared/ListItemSkeleton'
 import { useWhopUser } from '@/lib/context/WhopUserContext'
 import { useToast } from '@/lib/context/ToastContext'
@@ -25,10 +28,13 @@ export default function UpcomingTab({ roleOverride, companyId }: UpcomingTabProp
   const { user } = useWhopUser()
   const { showSuccess, showError } = useToast()
   const confirm = useConfirm()
+  const userTimezone = getUserTimezone()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [expandedBookings, setExpandedBookings] = useState<Set<string>>(new Set())
   const [selectedBooking, setSelectedBooking] = useState<BookingWithRelations | null>(null)
+  const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false)
+  const [bookingToReschedule, setBookingToReschedule] = useState<BookingWithRelations | null>(null)
 
   // Use SWR to fetch bookings
   const { data, error, isLoading, mutate } = useSWR<{ bookings: BookingWithRelations[] }>(
@@ -128,6 +134,20 @@ export default function UpcomingTab({ roleOverride, companyId }: UpcomingTabProp
     } catch (error) {
       showError('Failed to finish meeting', 'Please try again.')
     }
+  }
+
+  function openRescheduleModal(booking: BookingWithRelations, e?: React.MouseEvent) {
+    if (e) {
+      e.stopPropagation()
+    }
+    setBookingToReschedule(booking)
+    setIsRescheduleModalOpen(true)
+  }
+
+  function handleRescheduleSuccess() {
+    setIsRescheduleModalOpen(false)
+    setBookingToReschedule(null)
+    mutate()
   }
 
   function toggleExpanded(bookingId: string) {
@@ -262,12 +282,12 @@ export default function UpcomingTab({ roleOverride, companyId }: UpcomingTabProp
                         {startTime && (
                           <div className="flex items-center gap-2 text-sm text-zinc-400 mb-2">
                             <span className="font-medium text-white">
-                              {format(new Date(startTime), 'EEEE, MMMM d, yyyy')}
+                              {formatInTimeZone(new Date(startTime), userTimezone, 'EEEE, MMMM d, yyyy')}
                             </span>
                             <span className="text-zinc-600">•</span>
                             <span className="flex items-center gap-1">
                               <Clock className="w-3.5 h-3.5" />
-                              {format(new Date(startTime), 'h:mm a')}
+                              {formatInTimeZone(new Date(startTime), userTimezone, 'h:mm a')}
                             </span>
                             {endTime && (
                               <>
@@ -358,17 +378,27 @@ export default function UpcomingTab({ roleOverride, companyId }: UpcomingTabProp
                         </span>
                       ) : null}
                       {isAdmin && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            finishMeeting(booking.id)
-                          }}
-                          className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-semibold transition-colors inline-flex items-center gap-2"
-                          title="Finish meeting"
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                          Finish
-                        </button>
+                        <>
+                          <button
+                            onClick={(e) => openRescheduleModal(booking, e)}
+                            className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm font-semibold transition-colors inline-flex items-center gap-2"
+                            title="Reschedule meeting"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                            Reschedule
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              finishMeeting(booking.id)
+                            }}
+                            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-semibold transition-colors inline-flex items-center gap-2"
+                            title="Finish meeting"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            Finish
+                          </button>
+                        </>
                       )}
                       {isBookingOwner(booking) && (
                         <button
@@ -410,6 +440,24 @@ export default function UpcomingTab({ roleOverride, companyId }: UpcomingTabProp
           isAdmin={isAdmin}
           companyId={companyId}
           onFinish={() => mutate()}
+          onReschedule={(booking) => openRescheduleModal(booking)}
+        />
+      )}
+
+      {/* Reschedule Booking Modal */}
+      {bookingToReschedule && (
+        <RescheduleBookingModal
+          isOpen={isRescheduleModalOpen}
+          onClose={() => {
+            setIsRescheduleModalOpen(false)
+            setBookingToReschedule(null)
+          }}
+          onSuccess={handleRescheduleSuccess}
+          bookingId={bookingToReschedule.id}
+          bookingTitle={bookingToReschedule.title || bookingToReschedule.pattern?.title || bookingToReschedule.slot?.title || 'Meeting'}
+          currentStartTime={bookingToReschedule.slot?.start_time || bookingToReschedule.booking_start_time || ''}
+          currentEndTime={bookingToReschedule.slot?.end_time || bookingToReschedule.booking_end_time || ''}
+          companyId={companyId}
         />
       )}
     </div>
@@ -424,9 +472,10 @@ interface BookingDetailsDrawerProps {
   isAdmin: boolean
   companyId: string
   onFinish: () => void
+  onReschedule: (booking: BookingWithRelations) => void
 }
 
-function BookingDetailsDrawer({ booking, isOpen, onClose, isAdmin, companyId, onFinish }: BookingDetailsDrawerProps) {
+function BookingDetailsDrawer({ booking, isOpen, onClose, isAdmin, companyId, onFinish, onReschedule }: BookingDetailsDrawerProps) {
   const { showSuccess, showError } = useToast()
   const confirm = useConfirm()
   const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -539,14 +588,15 @@ function BookingDetailsDrawer({ booking, isOpen, onClose, isAdmin, companyId, on
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-zinc-400" />
                     <span className="text-white font-medium">
-                      {format(new Date(startTime), 'EEEE, MMMM d, yyyy')}
+                      {formatInTimeZone(new Date(startTime), userTimezone, 'EEEE, MMMM d, yyyy')}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-zinc-400" />
                     <span className="text-zinc-300">
-                      {format(new Date(startTime), 'h:mm a')}
-                      {endTime && ` - ${format(new Date(endTime), 'h:mm a')}`}
+                      {formatInTimeZone(new Date(startTime), userTimezone, 'h:mm a')}
+                      {endTime && ` - ${formatInTimeZone(new Date(endTime), userTimezone, 'h:mm a')}`}
+                      <span className="text-zinc-500 ml-2">({getTimezoneLabel(userTimezone)})</span>
                     </span>
                   </div>
                   {endTime && (
@@ -714,13 +764,25 @@ function BookingDetailsDrawer({ booking, isOpen, onClose, isAdmin, companyId, on
             </a>
           )}
           {isAdmin && booking.status === 'upcoming' && (
-            <button
-              onClick={handleFinishMeeting}
-              className="btn-primary flex items-center justify-center gap-2 flex-1 bg-blue-500 hover:bg-blue-600"
-            >
-              <CheckCircle className="w-4 h-4" />
-              Finish Meeting
-            </button>
+            <>
+              <button
+                onClick={() => {
+                  onReschedule(booking)
+                  onClose()
+                }}
+                className="btn-primary flex items-center justify-center gap-2 flex-1 bg-purple-500 hover:bg-purple-600"
+              >
+                <Edit3 className="w-4 h-4" />
+                Reschedule
+              </button>
+              <button
+                onClick={handleFinishMeeting}
+                className="btn-primary flex items-center justify-center gap-2 flex-1 bg-blue-500 hover:bg-blue-600"
+              >
+                <CheckCircle className="w-4 h-4" />
+                Finish Meeting
+              </button>
+            </>
           )}
           <button
             onClick={onClose}

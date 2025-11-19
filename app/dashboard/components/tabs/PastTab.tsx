@@ -5,6 +5,8 @@ import useSWR from 'swr'
 import { Calendar, User as UserIcon, CheckCircle, ExternalLink, Copy, Check, Trash2, Video, Upload, Clock, Link as LinkIcon, MapPin, Play, Edit, X, File } from 'lucide-react'
 import { BookingWithRelations, Recording, RecordingProvider, RecordingStatus } from '@/lib/types/database'
 import { format } from 'date-fns'
+import { formatInTimeZone } from 'date-fns-tz'
+import { getUserTimezone, getTimezoneLabel } from '@/lib/utils/timezone'
 import { BookingSkeleton } from '../shared/ListItemSkeleton'
 import { useWhopUser } from '@/lib/context/WhopUserContext'
 import { useToast } from '@/lib/context/ToastContext'
@@ -25,6 +27,7 @@ function PastTab({ roleOverride, companyId }: PastTabProps) {
   const { user } = useWhopUser()
   const { showSuccess, showError } = useToast()
   const confirm = useConfirm()
+  const userTimezone = getUserTimezone()
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null)
@@ -470,14 +473,15 @@ function BookingDetailsDrawer({ booking, isOpen, onClose, isAdmin, companyId, re
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-zinc-400" />
                     <span className="text-white font-medium">
-                      {format(new Date(startTime), 'EEEE, MMMM d, yyyy')}
+                      {formatInTimeZone(new Date(startTime), userTimezone, 'EEEE, MMMM d, yyyy')}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-zinc-400" />
                     <span className="text-zinc-300">
-                      {format(new Date(startTime), 'h:mm a')}
-                      {endTime && ` - ${format(new Date(endTime), 'h:mm a')}`}
+                      {formatInTimeZone(new Date(startTime), userTimezone, 'h:mm a')}
+                      {endTime && ` - ${formatInTimeZone(new Date(endTime), userTimezone, 'h:mm a')}`}
+                      <span className="text-zinc-500 ml-2">({getTimezoneLabel(userTimezone)})</span>
                     </span>
                   </div>
                   {endTime && (
@@ -680,7 +684,7 @@ function BookingDetailsDrawer({ booking, isOpen, onClose, isAdmin, companyId, re
                               </>
                             )}
                             <span>
-                              {format(new Date(recording.uploaded_at), 'MMM d, yyyy')}
+                              {formatInTimeZone(new Date(recording.uploaded_at), userTimezone, 'MMM d, yyyy')}
                             </span>
                           </div>
                         </div>

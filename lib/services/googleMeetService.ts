@@ -40,6 +40,7 @@ export class GoogleMeetService {
 
     const scopes = [
       'https://www.googleapis.com/auth/calendar.events',
+      'https://www.googleapis.com/auth/calendar.readonly', // For reading calendar events to check conflicts
       'https://www.googleapis.com/auth/userinfo.email',
     ]
 
@@ -70,6 +71,7 @@ export class GoogleMeetService {
 
     const scopes = [
       'https://www.googleapis.com/auth/calendar.events',
+      'https://www.googleapis.com/auth/calendar.readonly', // For reading calendar events to check conflicts
       'https://www.googleapis.com/auth/userinfo.email',
       // Restricted scope - requires Google verification process
       // Use 'drive.readonly' as fallback if drive.meet.readonly is not verified yet
@@ -202,16 +204,19 @@ export class GoogleMeetService {
 
       // Format event for Google Calendar API
       // Google Meet meetings are automatically open - no additional settings needed
+      // Use the user's timezone if provided, otherwise default to UTC
+      const timezone = details.timezone || 'UTC'
+
       const event = {
         summary: details.title,
         description,
         start: {
           dateTime: details.startTime,
-          timeZone: details.timezone || 'UTC',
+          timeZone: timezone,
         },
         end: {
           dateTime: details.endTime,
-          timeZone: details.timezone || 'UTC',
+          timeZone: timezone,
         },
         attendees: details.attendees.map((email) => ({ email })),
         conferenceData: {
@@ -355,6 +360,243 @@ export class GoogleMeetService {
         'Failed to revoke access',
         'google',
         'REVOKE_ERROR',
+        error
+      )
+    }
+  }
+
+  /**
+   * Fetch calendar events for conflict checking
+   * Returns events from the user's primary calendar within the specified time range
+   * Only returns non-cancelled events (status !== 'cancelled')
+   * Transparent events (marked as free time) are excluded
+   */
+  async getCalendarEvents(
+    accessToken: string,
+    timeMin: string, // ISO timestamp
+    timeMax: string // ISO timestamp
+  ): Promise<Array<{
+    id: string
+    summary?: string
+    start: string // ISO timestamp
+    end: string // ISO timestamp
+  }>> {
+    try {
+      const params = new URLSearchParams({
+        timeMin,
+        timeMax,
+        singleEvents: 'true', // Expand recurring events
+        orderBy: 'startTime',
+        maxResults: '250', // Get up to 250 events
+      })
+
+      const response = await fetch(
+        `${GOOGLE_CALENDAR_API}/calendars/primary/events?${params.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new MeetingServiceError(
+          `Failed to fetch calendar events: ${error.error?.message || 'Unknown error'}`,
+          'google',
+          error.error?.code?.toString(),
+          error
+        )
+      }
+
+      const result = await response.json()
+      const events = result.items || []
+
+      // Filter and transform events
+      return events
+        .filter((event: any) => {
+          // Exclude cancelled events
+          if (event.status === 'cancelled') return false
+
+          // Exclude transparent events (free time)
+          if (event.transparency === 'transparent') return false
+
+          // Must have start and end times
+          if (!event.start || !event.end) return false
+
+          return true
+        })
+        .map((event: any) => ({
+          id: event.id,
+          summary: event.summary,
+          // Handle both dateTime (timed events) and date (all-day events)
+          start: event.start.dateTime || event.start.date,
+          end: event.end.dateTime || event.end.date,
+        }))
+    } catch (error) {
+      if (error instanceof MeetingServiceError) throw error
+      throw new MeetingServiceError(
+        'Failed to fetch calendar events',
+        'google',
+        'FETCH_EVENTS_ERROR',
+        error
+      )
+    }
+  }
+
+  /**
+   * Delete a Google Calendar event
+   * Used when bookings are cancelled or deleted
+   */
+  async deleteCalendarEvent(
+    accessToken: string,
+    eventId: string
+  ): Promise<void> {
+    try {
+      console.log('🗑️ Deleting Google Calendar event:', eventId)
+
+      const response = await fetch(
+        `${GOOGLE_CALENDAR_API}/calendars/primary/events/${eventId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      )
+
+      if (!response.ok) {
+        // 404 is acceptable - event might already be deleted
+        if (response.status === 404) {
+          console.log('⚠️ Calendar event not found (may already be deleted):', eventId)
+          return
+        }
+
+        // 410 Gone is also acceptable - event was already deleted
+        if (response.status === 410) {
+          console.log('⚠️ Calendar event already deleted:', eventId)
+          return
+        }
+
+        const error = await response.json()
+        throw new MeetingServiceError(
+          `Failed to delete calendar event: ${error.error?.message || 'Unknown error'}`,
+          'google',
+          error.error?.code?.toString(),
+          error
+        )
+      }
+
+      console.log('✅ Google Calendar event deleted successfully:', eventId)
+    } catch (error) {
+      if (error instanceof MeetingServiceError) throw error
+      throw new MeetingServiceError(
+        'Failed to delete calendar event',
+        'google',
+        'DELETE_EVENT_ERROR',
+        error
+      )
+    }
+  }
+
+  /**
+   * Update a Google Calendar event (for rescheduling)
+   * Used when admins change meeting times
+   */
+  async updateCalendarEvent(
+    accessToken: string,
+    eventId: string,
+    updates: {
+      startTime?: string // ISO timestamp
+      endTime?: string // ISO timestamp
+      title?: string
+      description?: string
+      timezone?: string // IANA timezone identifier
+    }
+  ): Promise<void> {
+    try {
+      console.log('📝 Updating Google Calendar event:', eventId)
+      console.log('Updates:', updates)
+
+      // First, get the existing event
+      const getResponse = await fetch(
+        `${GOOGLE_CALENDAR_API}/calendars/primary/events/${eventId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      )
+
+      if (!getResponse.ok) {
+        const error = await getResponse.json()
+        throw new MeetingServiceError(
+          `Failed to fetch calendar event: ${error.error?.message || 'Unknown error'}`,
+          'google',
+          error.error?.code?.toString(),
+          error
+        )
+      }
+
+      const existingEvent = await getResponse.json()
+
+      // Prepare updated event data
+      const updatedEvent: any = {
+        ...existingEvent,
+      }
+
+      if (updates.title) {
+        updatedEvent.summary = updates.title
+      }
+
+      if (updates.description) {
+        updatedEvent.description = updates.description
+      }
+
+      if (updates.startTime) {
+        updatedEvent.start = {
+          dateTime: updates.startTime,
+          timeZone: updates.timezone || existingEvent.start.timeZone || 'UTC',
+        }
+      }
+
+      if (updates.endTime) {
+        updatedEvent.end = {
+          dateTime: updates.endTime,
+          timeZone: updates.timezone || existingEvent.end.timeZone || 'UTC',
+        }
+      }
+
+      // Update the event
+      const updateResponse = await fetch(
+        `${GOOGLE_CALENDAR_API}/calendars/primary/events/${eventId}`,
+        {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updatedEvent),
+        }
+      )
+
+      if (!updateResponse.ok) {
+        const error = await updateResponse.json()
+        throw new MeetingServiceError(
+          `Failed to update calendar event: ${error.error?.message || 'Unknown error'}`,
+          'google',
+          error.error?.code?.toString(),
+          error
+        )
+      }
+
+      console.log('✅ Google Calendar event updated successfully')
+    } catch (error) {
+      if (error instanceof MeetingServiceError) throw error
+      throw new MeetingServiceError(
+        'Failed to update calendar event',
+        'google',
+        'UPDATE_EVENT_ERROR',
         error
       )
     }

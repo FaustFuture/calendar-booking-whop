@@ -33,7 +33,7 @@ export async function GET(request: Request) {
     // Check Google Meet OAuth connection in database
     const { data: googleConnection } = await supabase
       .from('oauth_connections')
-      .select('id, provider, is_active')
+      .select('id, provider, is_active, scope, provider_email')
       .eq('user_id', checkUserId)
       .eq('provider', 'google')
       .eq('is_active', true)
@@ -75,6 +75,8 @@ export async function GET(request: Request) {
           active: true,
           type: 'user-oauth',
           configured: true,
+          scope: googleConnection.scope || '',
+          email: googleConnection.provider_email || '',
         } : {
           exists: false,
           configured: false,

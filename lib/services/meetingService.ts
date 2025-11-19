@@ -276,6 +276,77 @@ export class MeetingService {
       )
     }
   }
+
+  /**
+   * Delete a Google Calendar event
+   * Used when bookings are cancelled or deleted
+   */
+  async deleteGoogleCalendarEvent(
+    userId: string,
+    eventId: string
+  ): Promise<void> {
+    try {
+      // Get connection and ensure valid token
+      const connection = await this.getOAuthConnection(userId, 'google')
+      const accessToken = await this.ensureValidToken(connection)
+
+      // Delete the calendar event
+      await googleMeetService.deleteCalendarEvent(accessToken, eventId)
+
+      // Update last used timestamp
+      await this.updateOAuthConnection(connection.id, {
+        last_used_at: new Date().toISOString(),
+      })
+    } catch (error) {
+      if (error instanceof MeetingServiceError) throw error
+
+      throw new MeetingServiceError(
+        'Failed to delete Google Calendar event',
+        'google',
+        'DELETE_FAILED',
+        error
+      )
+    }
+  }
+
+  /**
+   * Update a Google Calendar event (for rescheduling)
+   * Used when admins change meeting times
+   */
+  async updateGoogleCalendarEvent(
+    userId: string,
+    eventId: string,
+    updates: {
+      startTime?: string
+      endTime?: string
+      title?: string
+      description?: string
+      timezone?: string
+    }
+  ): Promise<void> {
+    try {
+      // Get connection and ensure valid token
+      const connection = await this.getOAuthConnection(userId, 'google')
+      const accessToken = await this.ensureValidToken(connection)
+
+      // Update the calendar event
+      await googleMeetService.updateCalendarEvent(accessToken, eventId, updates)
+
+      // Update last used timestamp
+      await this.updateOAuthConnection(connection.id, {
+        last_used_at: new Date().toISOString(),
+      })
+    } catch (error) {
+      if (error instanceof MeetingServiceError) throw error
+
+      throw new MeetingServiceError(
+        'Failed to update Google Calendar event',
+        'google',
+        'UPDATE_FAILED',
+        error
+      )
+    }
+  }
 }
 
 // Export singleton instance

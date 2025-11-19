@@ -52,6 +52,7 @@ export interface Booking {
   description?: string
   status: BookingStatus
   meeting_url?: string
+  calendar_event_id?: string // Google Calendar event ID for syncing deletions
   notes?: string
   guest_name?: string
   guest_email?: string
@@ -113,6 +114,8 @@ export interface OAuthConnection {
 export interface AvailabilityPattern {
   id: string
   company_id: string
+  created_by?: string // Whop user ID of the admin who created this pattern
+  timezone: string // IANA timezone identifier (e.g., 'America/New_York')
   title: string
   description?: string
   duration_minutes: number
@@ -154,4 +157,34 @@ export interface AvailabilitySlotWithRelations extends AvailabilitySlot {
 
 export interface RecordingWithRelations extends Recording {
   booking?: BookingWithRelations
+}
+
+// Google Calendar Types
+export interface GoogleCalendarEvent {
+  id: string
+  summary?: string
+  start: {
+    dateTime?: string
+    date?: string
+    timeZone?: string
+  }
+  end: {
+    dateTime?: string
+    date?: string
+    timeZone?: string
+  }
+  status?: string
+  transparency?: string // 'transparent' or 'opaque'
+}
+
+export interface CalendarBusyTime {
+  start: string // ISO timestamp
+  end: string // ISO timestamp
+  summary?: string // Event title (optional, for debugging)
+}
+
+export interface CalendarEventsResponse {
+  busyTimes: CalendarBusyTime[]
+  cached: boolean
+  cacheExpiry?: string
 }
