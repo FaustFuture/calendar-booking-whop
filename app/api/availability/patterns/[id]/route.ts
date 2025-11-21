@@ -10,7 +10,7 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { commonData, scheduleData, companyId, ...directUpdateData } = body
+    const { commonData, scheduleData, recurrenceData, companyId, ...directUpdateData } = body
 
     // Require companyId for Whop multi-tenancy
     if (!companyId) {
@@ -91,6 +91,11 @@ export async function PUT(
           updateData.weekly_schedule = weeklySchedule
         }
       }
+
+      // Handle recurrence data if provided
+      if (recurrenceData) {
+        Object.assign(updateData, recurrenceData)
+      }
     } else {
       // Handle direct field updates (partial update)
       // Remove companyId and id from update data (not allowed to change)
@@ -107,7 +112,16 @@ export async function PUT(
         'end_date',
         'weekly_schedule',
         'timezone',
-        'is_active'
+        'is_active',
+        // Recurrence fields
+        'is_recurring',
+        'recurrence_type',
+        'recurrence_interval',
+        'recurrence_days_of_week',
+        'recurrence_day_of_month',
+        'recurrence_end_type',
+        'recurrence_count',
+        'recurrence_end_date'
       ]
       
       Object.keys(allowedFields).forEach(key => {

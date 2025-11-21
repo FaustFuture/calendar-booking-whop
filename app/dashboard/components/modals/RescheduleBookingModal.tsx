@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Calendar, Clock } from 'lucide-react'
-import { format } from 'date-fns'
+import { formatInTimeZone } from 'date-fns-tz'
 import { useToast } from '@/lib/context/ToastContext'
 import { getUserTimezone, getTimezoneLabel } from '@/lib/utils/timezone'
 import Drawer from '../shared/Drawer/Drawer'
@@ -19,6 +19,7 @@ interface RescheduleBookingModalProps {
   currentStartTime: string
   currentEndTime: string
   companyId: string
+  patternTimezone?: string
 }
 
 export default function RescheduleBookingModal({
@@ -30,11 +31,14 @@ export default function RescheduleBookingModal({
   currentStartTime,
   currentEndTime,
   companyId,
+  patternTimezone,
 }: RescheduleBookingModalProps) {
   const { showSuccess, showError } = useToast()
   const [submitting, setSubmitting] = useState(false)
   const userTimezone = getUserTimezone()
-  const timezoneLabel = getTimezoneLabel(userTimezone)
+  // Use pattern's timezone if available, otherwise fall back to user's timezone
+  const bookingTimezone = patternTimezone || userTimezone
+  const timezoneLabel = getTimezoneLabel(bookingTimezone)
 
   // Convert current times to datetime-local format (YYYY-MM-DDTHH:MM)
   const formatDateTimeLocal = (isoString: string) => {
@@ -96,7 +100,7 @@ export default function RescheduleBookingModal({
         body: JSON.stringify({
           booking_start_time: start.toISOString(),
           booking_end_time: end.toISOString(),
-          timezone: userTimezone,
+          timezone: bookingTimezone, // Use pattern's timezone
           companyId,
         }),
       })
@@ -139,14 +143,22 @@ export default function RescheduleBookingModal({
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-zinc-400" />
                   <span className="text-zinc-300">
-                    {format(new Date(currentStartTime), 'EEEE, MMMM d, yyyy')}
+                    {formatInTimeZone(new Date(currentStartTime), userTimezone, 'EEEE, MMMM d, yyyy')}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4 text-zinc-400" />
                   <span className="text-zinc-300">
-                    {format(new Date(currentStartTime), 'h:mm a')} -{' '}
-                    {format(new Date(currentEndTime), 'h:mm a')}
+                    {formatInTimeZone(new Date(currentStartTime), userTimezone, 'h:mm a')} -{' '}
+                    {formatInTimeZone(new Date(currentEndTime), userTimezone, 'h:mm a')}
+                    <span className="text-zinc-500 ml-2">
+                      (Your timezone: {getTimezoneLabel(userTimezone)})
+                      {bookingTimezone && bookingTimezone !== userTimezone && (
+                        <span className="block text-xs mt-1">
+                          Originally scheduled in {getTimezoneLabel(bookingTimezone)}
+                        </span>
+                      )}
+                    </span>
                   </span>
                 </div>
                 <div className="text-sm text-zinc-400">
@@ -158,7 +170,8 @@ export default function RescheduleBookingModal({
 
           {/* New Time Selection */}
           <div>
-            <h3 className="text-sm font-medium text-zinc-400 mb-3">New Time</h3>
+            <h3 className="text-sm font-medium text-zinc-400 mb-1">New Time</h3>
+            <p className="text-xs text-zinc-500 mb-3">Enter times in your local timezone ({getTimezoneLabel(userTimezone)})</p>
             <div className="space-y-4">
               {/* Start Time */}
               <div>
@@ -202,7 +215,7 @@ export default function RescheduleBookingModal({
           {/* Timezone Info */}
           <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
             <p className="text-sm text-blue-200">
-              Times are shown in your timezone: {timezoneLabel}
+              Times are shown in the availability pattern's timezone: {timezoneLabel}
             </p>
           </div>
 

@@ -296,6 +296,142 @@ export class GoogleMeetService {
   }
 
   /**
+   * Create a Google Calendar event (for non-Google Meet meetings)
+   * This creates a calendar event without necessarily creating a Google Meet conference
+   */
+  async createCalendarEvent(
+    userId: string,
+    details: MeetingDetails & { location?: string; conferenceData?: any }
+  ): Promise<{ eventId: string; meetingUrl?: string }> {
+    try {
+      // Get access token from database
+      const { createClient } = await import('@/lib/supabase/server')
+      const supabase = await createClient()
+
+      const { data: connection } = await supabase
+        .from('oauth_connections')
+        .select('access_token, refresh_token, expires_at')
+        .eq('user_id', userId)
+        .eq('provider', 'google')
+        .eq('is_active', true)
+        .single()
+
+      if (!connection) {
+        throw new Error('No Google OAuth connection found')
+      }
+
+      let accessToken = connection.access_token
+
+      // Check if token needs refresh
+      const expiresAt = new Date(connection.expires_at)
+      if (expiresAt.getTime() - Date.now() < 5 * 60 * 1000 && connection.refresh_token) {
+        const refreshResult = await this.refreshAccessToken(connection.refresh_token)
+        accessToken = refreshResult.access_token
+
+        // Update token in database
+        await supabase
+          .from('oauth_connections')
+          .update({
+            access_token: refreshResult.access_token,
+            expires_at: new Date(Date.now() + refreshResult.expires_in * 1000).toISOString(),
+            refresh_token: refreshResult.refresh_token || connection.refresh_token,
+          })
+          .eq('user_id', userId)
+          .eq('provider', 'google')
+      }
+
+      // Build event description
+      let description = details.description || ''
+
+      // Use the user's timezone if provided, otherwise default to UTC
+      const timezone = details.timezone || 'UTC'
+
+      // Build the event object
+      const event: any = {
+        summary: details.title,
+        description,
+        start: {
+          dateTime: details.startTime,
+          timeZone: timezone,
+        },
+        end: {
+          dateTime: details.endTime,
+          timeZone: timezone,
+        },
+        attendees: details.attendees.map((email) => ({ email })),
+        reminders: {
+          useDefault: false,
+          overrides: [
+            { method: 'email', minutes: 24 * 60 }, // 1 day before
+            { method: 'popup', minutes: 30 }, // 30 minutes before
+          ],
+        },
+      }
+
+      // Add location if provided (for physical meetings)
+      if (details.location) {
+        event.location = details.location
+      }
+
+      // Add conference data if provided (for Google Meet meetings)
+      // Pass conferenceData: null to explicitly NOT create a Meet link
+      // Pass conferenceData: undefined or a valid object to create one
+      if (details.conferenceData !== null && details.conferenceData !== undefined) {
+        event.conferenceData = details.conferenceData
+      } else if (details.conferenceData === undefined) {
+        // Default behavior: don't create conference for calendar events
+        // (only createMeeting should create Meet links)
+      }
+
+      // Determine API URL based on whether we need conference data
+      const apiUrl = event.conferenceData
+        ? `${GOOGLE_CALENDAR_API}/calendars/primary/events?conferenceDataVersion=1`
+        : `${GOOGLE_CALENDAR_API}/calendars/primary/events`
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(event),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new MeetingServiceError(
+          `Failed to create calendar event: ${result.error?.message || 'Unknown error'}`,
+          'google',
+          result.error?.code?.toString(),
+          result
+        )
+      }
+
+      console.log('📅 Calendar event created successfully:', result.id)
+
+      // Extract Google Meet link if conference data was created
+      const meetingUrl = result.hangoutLink || result.conferenceData?.entryPoints?.find(
+        (ep: { entryPointType: string }) => ep.entryPointType === 'video'
+      )?.uri
+
+      return {
+        eventId: result.id,
+        meetingUrl,
+      }
+    } catch (error) {
+      if (error instanceof MeetingServiceError) throw error
+      console.error('Error creating calendar event:', error)
+      throw new MeetingServiceError(
+        'Failed to create calendar event',
+        'google',
+        'CREATE_ERROR',
+        error
+      )
+    }
+  }
+
+  /**
    * Get user info from Google
    */
   async getUserInfo(accessToken: string): Promise<{

@@ -16,10 +16,10 @@ class CalendarCache {
   private readonly CACHE_DURATION = 5 * 60 * 1000 // 5 minutes in milliseconds
 
   /**
-   * Generate cache key from user ID and time range
+   * Generate cache key from user ID, time range, and timezone
    */
-  private generateKey(userId: string, startDate: string, endDate: string): string {
-    return `${userId}:${startDate}:${endDate}`
+  private generateKey(userId: string, startDate: string, endDate: string, timezone?: string): string {
+    return timezone ? `${userId}:${startDate}:${endDate}:${timezone}` : `${userId}:${startDate}:${endDate}`
   }
 
   /**
@@ -28,9 +28,10 @@ class CalendarCache {
   get(
     userId: string,
     startDate: string,
-    endDate: string
+    endDate: string,
+    timezone?: string
   ): { busyTimes: CalendarBusyTime[]; expiry: Date } | null {
-    const key = this.generateKey(userId, startDate, endDate)
+    const key = this.generateKey(userId, startDate, endDate, timezone)
     const entry = this.cache.get(key)
 
     if (!entry) {
@@ -52,8 +53,8 @@ class CalendarCache {
   /**
    * Store calendar events in cache
    */
-  set(userId: string, startDate: string, endDate: string, busyTimes: CalendarBusyTime[]): void {
-    const key = this.generateKey(userId, startDate, endDate)
+  set(userId: string, startDate: string, endDate: string, busyTimes: CalendarBusyTime[], timezone?: string): void {
+    const key = this.generateKey(userId, startDate, endDate, timezone)
     const expiry = Date.now() + this.CACHE_DURATION
 
     this.cache.set(key, {

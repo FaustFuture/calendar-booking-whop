@@ -8,9 +8,12 @@ import ConditionalSelect, { MeetingType } from '../shared/ConditionalSelect'
 import SimplifiedSchedulePicker, { SimplifiedScheduleData } from '../shared/SchedulePicker/SimplifiedSchedulePicker'
 import SlotsPreviewCount from '../shared/SchedulePicker/SlotsPreviewCount'
 import SkeletonLoader from '../shared/SkeletonLoader'
+import RecurrenceConfigPanel from '../shared/RecurrenceConfigPanel'
 import { useToast } from '@/lib/context/ToastContext'
 import { useConfirm } from '@/lib/context/ConfirmDialogContext'
 import { getUserTimezone } from '@/lib/utils/timezone'
+import { validateRecurrenceConfig } from '@/lib/utils/recurrence'
+import { RecurrenceType, RecurrenceEndType } from '@/lib/types/database'
 
 interface CreateSlotDrawerProps {
   isOpen: boolean
@@ -30,6 +33,15 @@ interface CreateSlotDrawerProps {
     start_date: string
     end_date?: string
     weekly_schedule: Record<string, Array<{ start: string; end: string }>>
+    // Recurrence fields
+    is_recurring?: boolean
+    recurrence_type?: RecurrenceType
+    recurrence_interval?: number
+    recurrence_days_of_week?: string[]
+    recurrence_day_of_month?: number
+    recurrence_end_type?: RecurrenceEndType
+    recurrence_count?: number
+    recurrence_end_date?: string
   }
 }
 
@@ -70,6 +82,16 @@ export default function CreateSlotDrawer({
       indefinite: false,
     },
   })
+  const [recurrenceConfig, setRecurrenceConfig] = useState({
+    isRecurring: false,
+    type: 'weekly' as RecurrenceType,
+    interval: 1,
+    daysOfWeek: [] as string[],
+    dayOfMonth: 1,
+    endType: 'count' as RecurrenceEndType,
+    count: 10,
+    endDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 90 days from now
+  })
 
   // Validation errors
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -77,6 +99,7 @@ export default function CreateSlotDrawer({
   const steps = [
     { number: 1, label: 'Details' },
     { number: 2, label: 'Schedule' },
+    { number: 3, label: 'Recurrence' },
   ]
 
   useEffect(() => {
@@ -137,6 +160,32 @@ export default function CreateSlotDrawer({
             indefinite: !editData.end_date,
           },
         })
+
+        // Set recurrence config from editData
+        if (editData.is_recurring) {
+          setRecurrenceConfig({
+            isRecurring: true,
+            type: editData.recurrence_type || 'weekly',
+            interval: editData.recurrence_interval || 1,
+            daysOfWeek: editData.recurrence_days_of_week || [],
+            dayOfMonth: editData.recurrence_day_of_month || 1,
+            endType: editData.recurrence_end_type || 'count',
+            count: editData.recurrence_count || 10,
+            endDate: editData.recurrence_end_date || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          })
+        } else {
+          // Reset to default non-recurring config when editing a non-recurring pattern
+          setRecurrenceConfig({
+            isRecurring: false,
+            type: 'weekly' as RecurrenceType,
+            interval: 1,
+            daysOfWeek: [] as string[],
+            dayOfMonth: 1,
+            endType: 'count' as RecurrenceEndType,
+            count: 10,
+            endDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          })
+        }
       } else {
         // Reset form for new pattern
         resetForm()
@@ -201,10 +250,30 @@ export default function CreateSlotDrawer({
     return Object.keys(newErrors).length === 0
   }
 
+  function validateStep3(): boolean {
+    const newErrors: Record<string, string> = {}
+
+    // Only validate if recurrence is enabled
+    if (recurrenceConfig.isRecurring) {
+      const validationError = validateRecurrenceConfig(recurrenceConfig)
+      if (validationError) {
+        newErrors.recurrence = validationError
+      }
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
   function handleNext() {
     if (currentStep === 1) {
       if (validateStep1()) {
         setCurrentStep(2)
+        setErrors({})
+      }
+    } else if (currentStep === 2) {
+      if (validateStep2()) {
+        setCurrentStep(3)
         setErrors({})
       }
     }
@@ -218,7 +287,7 @@ export default function CreateSlotDrawer({
   }
 
   async function handleSubmit() {
-    if (!validateStep2()) {
+    if (!validateStep3()) {
       return
     }
 
@@ -244,12 +313,27 @@ export default function CreateSlotDrawer({
         ? `/api/availability/patterns/${patternId}`
         : '/api/availability/patterns'
 
+      // Prepare recurrence data if enabled
+      const recurrenceData = recurrenceConfig.isRecurring ? {
+        is_recurring: true,
+        recurrence_type: recurrenceConfig.type,
+        recurrence_interval: recurrenceConfig.interval,
+        recurrence_days_of_week: recurrenceConfig.type === 'weekly' ? recurrenceConfig.daysOfWeek : null,
+        recurrence_day_of_month: recurrenceConfig.type === 'monthly' ? recurrenceConfig.dayOfMonth : null,
+        recurrence_end_type: recurrenceConfig.endType,
+        recurrence_count: recurrenceConfig.endType === 'count' ? recurrenceConfig.count : null,
+        recurrence_end_date: recurrenceConfig.endType === 'date' ? recurrenceConfig.endDate : null,
+      } : {
+        is_recurring: false,
+      }
+
       const response = await fetch(url, {
         method: patternId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           commonData,
           scheduleData,
+          recurrenceData,
           timezone: getUserTimezone(), // Save admin's timezone to prevent booking conflicts
           companyId
         }),
@@ -286,6 +370,16 @@ export default function CreateSlotDrawer({
         end: new Date(Date.now() + 28 * 24 * 60 * 60 * 1000), // Default 4 weeks
         indefinite: false,
       },
+    })
+    setRecurrenceConfig({
+      isRecurring: false,
+      type: 'weekly' as RecurrenceType,
+      interval: 1,
+      daysOfWeek: [] as string[],
+      dayOfMonth: 1,
+      endType: 'count' as RecurrenceEndType,
+      count: 10,
+      endDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     })
     setErrors({})
   }
@@ -458,6 +552,26 @@ export default function CreateSlotDrawer({
                 <SlotsPreviewCount
                   scheduleData={scheduleData}
                   duration={duration === 'custom' ? parseInt(customDuration) || 30 : parseInt(duration)}
+                />
+              </div>
+            )}
+
+            {/* Step 3: Recurrence */}
+            {currentStep === 3 && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-2">
+                    Recurring Bookings
+                  </h3>
+                  <p className="text-sm text-zinc-400 mb-4">
+                    Configure if this availability pattern should create recurring bookings
+                  </p>
+                </div>
+
+                <RecurrenceConfigPanel
+                  config={recurrenceConfig}
+                  onChange={setRecurrenceConfig}
+                  error={errors.recurrence}
                 />
               </div>
             )}

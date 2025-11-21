@@ -214,11 +214,20 @@ export default function DashboardTabs({ companyId }: DashboardTabsProps) {
           start_date: editingPattern.start_date,
           end_date: editingPattern.end_date || undefined,
           weekly_schedule: editingPattern.weekly_schedule,
+          // Recurrence fields
+          is_recurring: editingPattern.is_recurring || false,
+          recurrence_type: editingPattern.recurrence_type || undefined,
+          recurrence_interval: editingPattern.recurrence_interval || undefined,
+          recurrence_days_of_week: editingPattern.recurrence_days_of_week || undefined,
+          recurrence_day_of_month: editingPattern.recurrence_day_of_month || undefined,
+          recurrence_end_type: editingPattern.recurrence_end_type || undefined,
+          recurrence_count: editingPattern.recurrence_count || undefined,
+          recurrence_end_date: editingPattern.recurrence_end_date || undefined,
         } : undefined}
       />
 
-      {/* Timezone Debugger - Shows current detected timezone */}
-      <TimezoneDebugger />
+      {/* Timezone Debugger - Shows current detected timezone
+      <TimezoneDebugger /> */}
     </div>
   )
 }

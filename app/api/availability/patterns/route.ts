@@ -7,7 +7,7 @@ export async function POST(request: Request) {
     const supabase = await createClient()
 
     const body = await request.json()
-    const { commonData, scheduleData, companyId } = body
+    const { commonData, scheduleData, recurrenceData, companyId } = body
 
     // Validate input
     if (!commonData || !scheduleData) {
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     })
 
     // Create the availability pattern
-    const { data: pattern, error } = await supabase
+    const { data: pattern, error} = await supabase
       .from('availability_patterns')
       .insert({
         company_id: companyId,
@@ -65,6 +65,8 @@ export async function POST(request: Request) {
         end_date: scheduleData.dateRange.indefinite ? null : scheduleData.dateRange.end,
         weekly_schedule: weeklySchedule,
         is_active: true,
+        // Recurrence fields
+        ...(recurrenceData || {}),
       })
       .select()
       .single()

@@ -146,13 +146,20 @@ export default function ViewSlotsDrawer({
           const [startHour, startMin] = startTime.split(':').map(Number)
           const [endHour, endMin] = endTime.split(':').map(Number)
 
-          let slotStart = setMinutes(setHours(currentDay, startHour), startMin)
-          const rangeEnd = setMinutes(setHours(currentDay, endHour), endMin)
+          // Create dates in the pattern's timezone, then convert to UTC
+          const patternTz = pattern.timezone || 'UTC'
+
+          // Create a date object in local time first
+          let localSlotStart = setMinutes(setHours(currentDay, startHour), startMin)
+          const localRangeEnd = setMinutes(setHours(currentDay, endHour), endMin)
+
+          // Convert from pattern timezone to UTC
+          let slotStart = fromZonedTime(localSlotStart, patternTz)
+          const rangeEnd = fromZonedTime(localRangeEnd, patternTz)
 
           // Generate slots in increments of duration_minutes
           while (slotStart < rangeEnd) {
-            const slotEnd = addDays(slotStart, 0)
-            slotEnd.setMinutes(slotEnd.getMinutes() + pattern.duration_minutes)
+            const slotEnd = new Date(slotStart.getTime() + pattern.duration_minutes * 60 * 1000)
 
             if (slotEnd <= rangeEnd) {
               const slotId = `${pattern.id}:${format(slotStart, 'yyyy-MM-dd:HH:mm')}`
@@ -282,7 +289,7 @@ export default function ViewSlotsDrawer({
         status: 'upcoming',
         booking_start_time: selectedSlot.start_time,
         booking_end_time: selectedSlot.end_time,
-        timezone: getUserTimezone(), // Add user's timezone
+        timezone: pattern.timezone || 'UTC', // Use pattern's timezone, not user's
         notes: notes.trim() || undefined,
       }
 
@@ -433,10 +440,11 @@ export default function ViewSlotsDrawer({
     }
   }
 
-  // Group slots by day (use pattern timezone for grouping)
+  // Group slots by day (use user's timezone for display)
   const patternTimezone = pattern?.timezone || 'UTC'
+  const userTimezone = getUserTimezone()
   const slotsByDay = slots.reduce((acc, slot) => {
-    const day = formatInTimeZone(new Date(slot.start_time), patternTimezone, 'yyyy-MM-dd')
+    const day = formatInTimeZone(new Date(slot.start_time), userTimezone, 'yyyy-MM-dd')
     if (!acc[day]) acc[day] = []
     acc[day].push(slot)
     return acc
@@ -506,7 +514,7 @@ export default function ViewSlotsDrawer({
               {Object.entries(slotsByDay).map(([day, daySlots]) => (
                 <div key={day}>
                   <h3 className="text-white font-semibold mb-3">
-                    {formatInTimeZone(new Date(daySlots[0].start_time), patternTimezone, 'EEEE, MMMM d')}
+                    {formatInTimeZone(new Date(daySlots[0].start_time), userTimezone, 'EEEE, MMMM d')}
                   </h3>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                     {daySlots.map((slot) => {
@@ -526,7 +534,7 @@ export default function ViewSlotsDrawer({
                             }
                           `}
                         >
-                          <div>{formatInTimeZone(new Date(slot.start_time), patternTimezone, 'h:mm a')}</div>
+                          <div>{formatInTimeZone(new Date(slot.start_time), userTimezone, 'h:mm a')}</div>
                           {/* {slot.is_conflict && !slot.is_booked && (
                             <div className="text-xs text-zinc-500 mt-0.5">Busy</div>
                           )} */}
@@ -547,10 +555,10 @@ export default function ViewSlotsDrawer({
             <div className="space-y-4">
             {/* Selected time info */}
             <div className="text-sm">
-              <p className="text-zinc-400 mb-1">Selected time ({getTimezoneLabel(patternTimezone)}):</p>
+              <p className="text-zinc-400 mb-1">Selected time (your timezone):</p>
               <p className="text-white font-semibold">
-                {formatInTimeZone(new Date(selectedSlot.start_time), patternTimezone, 'EEEE, MMMM d, yyyy')} at{' '}
-                {formatInTimeZone(new Date(selectedSlot.start_time), patternTimezone, 'h:mm a')}
+                {formatInTimeZone(new Date(selectedSlot.start_time), userTimezone, 'EEEE, MMMM d, yyyy')} at{' '}
+                {formatInTimeZone(new Date(selectedSlot.start_time), userTimezone, 'h:mm a')} {getTimezoneLabel(userTimezone)}
               </p>
             </div>
 

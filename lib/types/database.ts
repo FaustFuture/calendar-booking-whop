@@ -58,6 +58,11 @@ export interface Booking {
   guest_email?: string
   booking_start_time?: string
   booking_end_time?: string
+  timezone?: string // IANA timezone identifier from the availability pattern
+  // Recurrence fields
+  recurrence_group_id?: string // UUID linking recurring bookings together
+  recurrence_index?: number // Index in the series (0, 1, 2, ...)
+  is_recurring_instance?: boolean // Whether this is part of a recurring series
   notification_24h_sent?: boolean
   notification_2h_sent?: boolean
   notification_30min_sent?: boolean
@@ -111,6 +116,9 @@ export interface OAuthConnection {
   updated_at: string
 }
 
+export type RecurrenceType = 'daily' | 'weekly' | 'monthly' | 'custom'
+export type RecurrenceEndType = 'count' | 'date'
+
 export interface AvailabilityPattern {
   id: string
   company_id: string
@@ -126,6 +134,15 @@ export interface AvailabilityPattern {
   end_date?: string
   weekly_schedule: Record<string, Array<{ start: string; end: string }>>
   is_active: boolean
+  // Recurrence configuration
+  is_recurring?: boolean
+  recurrence_type?: RecurrenceType
+  recurrence_interval?: number // e.g., every 2 weeks
+  recurrence_days_of_week?: string[] // ['Mon', 'Wed', 'Fri']
+  recurrence_day_of_month?: number // 1-31
+  recurrence_end_type?: RecurrenceEndType
+  recurrence_count?: number // Number of occurrences
+  recurrence_end_date?: string // End date for recurrence
   created_at: string
   updated_at: string
 }

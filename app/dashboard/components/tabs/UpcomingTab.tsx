@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import useSWR from 'swr'
-import { Plus, Calendar, User as UserIcon, ExternalLink, Copy, Check, ChevronDown, ChevronUp, Video, Link as LinkIcon, MapPin, Clock, Trash2, CheckCircle, File, Edit3 } from 'lucide-react'
+import { Plus, Calendar, User as UserIcon, ExternalLink, Copy, Check, ChevronDown, ChevronUp, Video, Link as LinkIcon, MapPin, Clock, Trash2, CheckCircle, File, Edit3, Repeat } from 'lucide-react'
 import { BookingWithRelations } from '@/lib/types/database'
-import { format } from 'date-fns'
 import { formatInTimeZone } from 'date-fns-tz'
 import { getUserTimezone, getTimezoneLabel } from '@/lib/utils/timezone'
 import CreateBookingDrawer from '../modals/CreateBookingDrawer'
@@ -273,10 +272,18 @@ export default function UpcomingTab({ roleOverride, companyId }: UpcomingTabProp
 
                       {/* Content */}
                       <div className="flex-1 min-w-0">
-                        {/* Title */}
-                        <h3 className="text-lg font-semibold text-white mb-2">
-                          {booking.title || booking.pattern?.title || booking.slot?.title || 'Booking'}
-                        </h3>
+                        {/* Title with Recurring Badge */}
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="text-lg font-semibold text-white">
+                            {booking.title || booking.pattern?.title || booking.slot?.title || 'Booking'}
+                          </h3>
+                          {booking.is_recurring_instance && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-500/10 border border-purple-500/20 rounded-md text-xs font-medium text-purple-400">
+                              <Repeat className="w-3 h-3" />
+                              Recurring {booking.recurrence_index !== undefined && booking.recurrence_index > 0 && `#${booking.recurrence_index + 1}`}
+                            </span>
+                          )}
+                        </div>
 
                         {/* Date, Time, Duration */}
                         {startTime && (
@@ -458,6 +465,7 @@ export default function UpcomingTab({ roleOverride, companyId }: UpcomingTabProp
           currentStartTime={bookingToReschedule.slot?.start_time || bookingToReschedule.booking_start_time || ''}
           currentEndTime={bookingToReschedule.slot?.end_time || bookingToReschedule.booking_end_time || ''}
           companyId={companyId}
+          patternTimezone={bookingToReschedule.timezone || bookingToReschedule.pattern?.timezone}
         />
       )}
     </div>
@@ -479,6 +487,7 @@ function BookingDetailsDrawer({ booking, isOpen, onClose, isAdmin, companyId, on
   const { showSuccess, showError } = useToast()
   const confirm = useConfirm()
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const userTimezone = getUserTimezone()
 
   const startTime = booking.slot?.start_time || booking.booking_start_time
   const endTime = booking.slot?.end_time || booking.booking_end_time
@@ -596,7 +605,15 @@ function BookingDetailsDrawer({ booking, isOpen, onClose, isAdmin, companyId, on
                     <span className="text-zinc-300">
                       {formatInTimeZone(new Date(startTime), userTimezone, 'h:mm a')}
                       {endTime && ` - ${formatInTimeZone(new Date(endTime), userTimezone, 'h:mm a')}`}
-                      <span className="text-zinc-500 ml-2">({getTimezoneLabel(userTimezone)})</span>
+                      <span className="text-zinc-500 ml-2">
+                        (Your timezone: {getTimezoneLabel(userTimezone)})
+                        {(booking.timezone || booking.pattern?.timezone) &&
+                         (booking.timezone || booking.pattern?.timezone) !== userTimezone && (
+                          <span className="block text-xs mt-1">
+                            Originally scheduled in {getTimezoneLabel(booking.timezone || booking.pattern?.timezone)}
+                          </span>
+                        )}
+                      </span>
                     </span>
                   </div>
                   {endTime && (

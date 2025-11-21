@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import useSWR from 'swr'
-import { Calendar, User as UserIcon, CheckCircle, ExternalLink, Copy, Check, Trash2, Video, Upload, Clock, Link as LinkIcon, MapPin, Play, Edit, X, File } from 'lucide-react'
+import { Calendar, User as UserIcon, CheckCircle, ExternalLink, Copy, Check, Trash2, Video, Upload, Clock, Link as LinkIcon, MapPin, Play, Edit, X, File, Repeat } from 'lucide-react'
 import { BookingWithRelations, Recording, RecordingProvider, RecordingStatus } from '@/lib/types/database'
-import { format } from 'date-fns'
 import { formatInTimeZone } from 'date-fns-tz'
 import { getUserTimezone, getTimezoneLabel } from '@/lib/utils/timezone'
 import { BookingSkeleton } from '../shared/ListItemSkeleton'
@@ -205,6 +204,12 @@ function PastTab({ roleOverride, companyId }: PastTabProps) {
                       }`}>
                         {booking.status === 'completed' ? 'Completed' : 'Cancelled'}
                       </span>
+                      {booking.is_recurring_instance && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-500/10 border border-purple-500/20 rounded-md text-xs font-medium text-purple-400">
+                          <Repeat className="w-3 h-3" />
+                          Recurring {booking.recurrence_index !== undefined && booking.recurrence_index > 0 && `#${booking.recurrence_index + 1}`}
+                        </span>
+                      )}
                       {recordingsCount[booking.id] > 0 && (
                         <span className="flex-shrink-0 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-400 flex items-center gap-1">
                           <Video className="w-3 h-3" />
@@ -217,15 +222,17 @@ function PastTab({ roleOverride, companyId }: PastTabProps) {
                     {(booking.slot || booking.booking_start_time) && (
                       <div className="flex items-center gap-2 text-sm text-zinc-400">
                         <span>
-                          {format(
+                          {formatInTimeZone(
                             new Date(booking.slot?.start_time || booking.booking_start_time!),
+                            userTimezone,
                             'MMM d, yyyy'
                           )}
                         </span>
                         <span className="text-zinc-600">•</span>
                         <span>
-                          {format(
+                          {formatInTimeZone(
                             new Date(booking.slot?.start_time || booking.booking_start_time!),
+                            userTimezone,
                             'h:mm a'
                           )}
                         </span>
@@ -305,6 +312,7 @@ interface BookingDetailsDrawerProps {
 function BookingDetailsDrawer({ booking, isOpen, onClose, isAdmin, companyId, recordings, onRecordingsUpdate }: BookingDetailsDrawerProps) {
   const { showSuccess, showError } = useToast()
   const confirm = useConfirm()
+  const userTimezone = getUserTimezone()
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -481,7 +489,15 @@ function BookingDetailsDrawer({ booking, isOpen, onClose, isAdmin, companyId, re
                     <span className="text-zinc-300">
                       {formatInTimeZone(new Date(startTime), userTimezone, 'h:mm a')}
                       {endTime && ` - ${formatInTimeZone(new Date(endTime), userTimezone, 'h:mm a')}`}
-                      <span className="text-zinc-500 ml-2">({getTimezoneLabel(userTimezone)})</span>
+                      <span className="text-zinc-500 ml-2">
+                        (Your timezone: {getTimezoneLabel(userTimezone)})
+                        {(booking.timezone || booking.pattern?.timezone) &&
+                         (booking.timezone || booking.pattern?.timezone) !== userTimezone && (
+                          <span className="block text-xs mt-1">
+                            Originally scheduled in {getTimezoneLabel(booking.timezone || booking.pattern?.timezone)}
+                          </span>
+                        )}
+                      </span>
                     </span>
                   </div>
                   {endTime && (

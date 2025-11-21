@@ -10,6 +10,7 @@ import { requireWhopAuth, syncWhopUserToSupabase } from '@/lib/auth/whop'
 import { googleMeetService } from '@/lib/services/googleMeetService'
 import { calendarCache } from '@/lib/utils/calendarCache'
 import { CalendarBusyTime } from '@/lib/types/database'
+import { fromZonedTime } from 'date-fns-tz'
 
 export async function GET(request: NextRequest) {
   console.log('🚀 Calendar Events API endpoint called!')
@@ -53,7 +54,7 @@ export async function GET(request: NextRequest) {
     console.log('🔍 Looking up availability pattern...')
     const { data: pattern, error: patternError } = await supabase
       .from('availability_patterns')
-      .select('id, created_by, company_id, title')
+      .select('id, created_by, company_id, title, timezone')
       .eq('id', patternId)
       .single()
 
@@ -83,9 +84,10 @@ export async function GET(request: NextRequest) {
 
     console.log('👤 Pattern creator:', pattern.created_by)
 
-    // Check cache first
+    // Check cache first (include timezone in cache key)
     console.log('💾 Checking cache...')
-    const cached = calendarCache.get(pattern.created_by, startDate, endDate)
+    const patternTimezone = pattern.timezone || 'UTC'
+    const cached = calendarCache.get(pattern.created_by, startDate, endDate, patternTimezone)
     if (cached) {
       console.log('✅ Cache hit! Returning cached data')
       return NextResponse.json({
@@ -184,9 +186,14 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Convert dates to ISO timestamps
-    const timeMin = new Date(startDate).toISOString()
-    const timeMax = new Date(`${endDate}T23:59:59.999Z`).toISOString()
+    // Create Date objects for the start and end in the pattern's timezone
+    // Then convert to UTC for the Google Calendar API
+    const startDateInPatternTz = new Date(`${startDate}T00:00:00`)
+    const endDateInPatternTz = new Date(`${endDate}T23:59:59`)
+
+    // Convert from pattern timezone to UTC
+    const timeMin = fromZonedTime(startDateInPatternTz, patternTimezone).toISOString()
+    const timeMax = fromZonedTime(endDateInPatternTz, patternTimezone).toISOString()
 
     // Fetch calendar events
     try {
@@ -194,9 +201,10 @@ export async function GET(request: NextRequest) {
       console.log('📅 FETCHING GOOGLE CALENDAR EVENTS')
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
       console.log('User ID:', pattern.created_by)
-      console.log('Date Range:', { startDate, endDate })
-      console.log('Time Range (ISO):', { timeMin, timeMax })
       console.log('Pattern:', { id: pattern.id, title: pattern.title })
+      console.log('Pattern Timezone:', patternTimezone)
+      console.log('Date Range (pattern TZ):', { startDate, endDate })
+      console.log('Time Range (UTC for API):', { timeMin, timeMax })
       console.log('')
 
       const events = await googleMeetService.getCalendarEvents(accessToken, timeMin, timeMax)
@@ -247,8 +255,8 @@ export async function GET(request: NextRequest) {
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
       console.log('')
 
-      // Cache the results
-      calendarCache.set(pattern.created_by, startDate, endDate, busyTimes)
+      // Cache the results (including timezone in cache key)
+      calendarCache.set(pattern.created_by, startDate, endDate, busyTimes, patternTimezone)
 
       // Update last_used_at
       await supabase
