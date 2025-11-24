@@ -534,59 +534,59 @@ export async function POST(request: Request) {
         const occurrenceStartTime = occurrence.start.toISOString()
         const occurrenceEndTime = occurrence.end.toISOString()
 
+        // Generate Zoom meeting for this occurrence if needed (independent of Google Calendar)
+        let occurrenceMeetingUrl = meetingUrl // Default to the original meeting URL
+        if (meetingData.meeting_type === 'zoom' && meetingData.meeting_config?.requiresGeneration && calendarAdminId) {
+          console.log(`🎥 Generating Zoom meeting for occurrence ${i + 1}/${occurrences.length}`)
+          try {
+            // Collect attendee emails for Zoom
+            const zoomAttendees: string[] = []
+            if (body.member_id) {
+              const { data: memberData } = await supabase
+                .from('users')
+                .select('email')
+                .eq('id', body.member_id)
+                .single()
+              if (memberData?.email) zoomAttendees.push(memberData.email)
+            } else if (body.guest_email) {
+              zoomAttendees.push(body.guest_email)
+            }
+
+            const { data: adminData } = await supabase
+              .from('users')
+              .select('email')
+              .eq('id', calendarAdminId)
+              .single()
+            if (adminData?.email) zoomAttendees.push(adminData.email)
+
+            // Generate Zoom meeting
+            const zoomResult = await meetingService.generateMeetingLink(
+              calendarAdminId,
+              'zoom',
+              {
+                title: insertData.title || 'Booking',
+                description: insertData.description || '',
+                startTime: occurrenceStartTime,
+                endTime: occurrenceEndTime,
+                attendees: zoomAttendees,
+                timezone: insertData.timezone,
+                enableRecording: meetingData.meeting_config?.enableRecording ?? true,
+              }
+            )
+
+            occurrenceMeetingUrl = zoomResult.meetingUrl
+            console.log(`✅ Zoom meeting created for occurrence ${i + 1}: ${occurrenceMeetingUrl}`)
+          } catch (error) {
+            console.error(`❌ Failed to generate Zoom meeting for occurrence ${i + 1}:`, error)
+            // Continue without Zoom link
+          }
+        }
+
         // Create calendar event for this occurrence if we have an admin with Google Calendar
         let occurrenceCalendarEventId = null
-        let occurrenceMeetingUrl = meetingUrl // Default to the original meeting URL
         if (calendarAdminId && hasGoogleCalendar) {
           try {
             console.log(`📅 Creating calendar event for occurrence ${i + 1}/${occurrences.length}`)
-
-            // Generate Zoom meeting for this occurrence if needed
-            if (meetingData.meeting_type === 'zoom' && meetingData.meeting_config?.requiresGeneration) {
-              console.log(`🎥 Generating Zoom meeting for occurrence ${i + 1}/${occurrences.length}`)
-              try {
-                // Collect attendee emails for Zoom
-                const zoomAttendees: string[] = []
-                if (body.member_id) {
-                  const { data: memberData } = await supabase
-                    .from('users')
-                    .select('email')
-                    .eq('id', body.member_id)
-                    .single()
-                  if (memberData?.email) zoomAttendees.push(memberData.email)
-                } else if (body.guest_email) {
-                  zoomAttendees.push(body.guest_email)
-                }
-
-                const { data: adminData } = await supabase
-                  .from('users')
-                  .select('email')
-                  .eq('id', calendarAdminId)
-                  .single()
-                if (adminData?.email) zoomAttendees.push(adminData.email)
-
-                // Generate Zoom meeting
-                const zoomResult = await meetingService.generateMeetingLink(
-                  calendarAdminId,
-                  'zoom',
-                  {
-                    title: insertData.title || 'Booking',
-                    description: insertData.description || '',
-                    startTime: occurrenceStartTime,
-                    endTime: occurrenceEndTime,
-                    attendees: zoomAttendees,
-                    timezone: insertData.timezone,
-                    enableRecording: meetingData.meeting_config?.enableRecording ?? true,
-                  }
-                )
-
-                occurrenceMeetingUrl = zoomResult.meetingUrl
-                console.log(`✅ Zoom meeting created for occurrence ${i + 1}: ${occurrenceMeetingUrl}`)
-              } catch (error) {
-                console.error(`❌ Failed to generate Zoom meeting for occurrence ${i + 1}:`, error)
-                // Continue without Zoom link
-              }
-            }
 
             // Build event description
             let eventDescription = insertData.description || `Booking with ${insertData.customer_name || 'Customer'}`
