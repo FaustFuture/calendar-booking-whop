@@ -363,18 +363,36 @@ export default function UpcomingTab({ roleOverride, companyId }: UpcomingTabProp
 
                     {/* Actions */}
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {/* Show Join button if meeting_url exists OR if meeting type requires a URL */}
-                      {booking.meeting_url ? (
-                        <a
-                          href={booking.meeting_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-semibold transition-colors inline-flex items-center gap-2"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                          Join
-                        </a>
+                      {/* Show Join button if meeting_url or manual_meeting_url exists OR if meeting type requires a URL */}
+                      {booking.meeting_url || booking.manual_meeting_url ? (
+                        <div className="flex gap-2">
+                          {booking.meeting_url && (
+                            <a
+                              href={booking.meeting_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors inline-flex items-center gap-2"
+                              onClick={(e) => e.stopPropagation()}
+                              title="Join Zoom Meeting"
+                            >
+                              <Video className="w-4 h-4" />
+                              Join Zoom
+                            </a>
+                          )}
+                          {booking.manual_meeting_url && (
+                            <a
+                              href={booking.manual_meeting_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-semibold transition-colors inline-flex items-center gap-2"
+                              onClick={(e) => e.stopPropagation()}
+                              title="Join Meeting"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                              Join
+                            </a>
+                          )}
+                        </div>
                       ) : meetingType && ['zoom', 'google_meet'].includes(meetingType) ? (
                         <span
                           className="px-4 py-2 bg-zinc-700/50 text-zinc-400 rounded-lg text-sm font-semibold inline-flex items-center gap-2"
@@ -717,36 +735,80 @@ function BookingDetailsDrawer({ booking, isOpen, onClose, isAdmin, companyId, on
             </div>
           )}
 
-          {/* Meeting URL */}
-          {booking.meeting_url && (
+          {/* Meeting URLs */}
+          {(booking.meeting_url || booking.manual_meeting_url) && (
             <div className="space-y-2">
-              <h3 className="text-sm font-medium text-zinc-400">Meeting Link</h3>
-              <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700/50">
-                <div className="flex items-center gap-2">
-                  <a
-                    href={booking.meeting_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-emerald-400 hover:text-emerald-300 text-sm truncate flex-1"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {booking.meeting_url}
-                  </a>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      copyMeetingLink(booking.id, booking.meeting_url!)
-                    }}
-                    className="p-2 hover:bg-zinc-700 rounded-lg transition-colors"
-                    title="Copy link"
-                  >
-                    {copiedId === booking.id ? (
-                      <Check className="w-4 h-4 text-emerald-400" />
-                    ) : (
-                      <Copy className="w-4 h-4 text-zinc-400" />
-                    )}
-                  </button>
-                </div>
+              <h3 className="text-sm font-medium text-zinc-400">Meeting Links</h3>
+              <div className="space-y-3">
+                {/* Generated Zoom/Google Meet Link */}
+                {booking.meeting_url && (
+                  <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700/50">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Video className="w-4 h-4 text-blue-400" />
+                      <span className="text-sm font-medium text-zinc-300">Generated Meeting Link</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={booking.meeting_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-emerald-400 hover:text-emerald-300 text-sm truncate flex-1"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {booking.meeting_url}
+                      </a>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          copyMeetingLink(booking.id, booking.meeting_url!)
+                        }}
+                        className="p-2 hover:bg-zinc-700 rounded-lg transition-colors"
+                        title="Copy link"
+                      >
+                        {copiedId === booking.id ? (
+                          <Check className="w-4 h-4 text-emerald-400" />
+                        ) : (
+                          <Copy className="w-4 h-4 text-zinc-400" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Manual Meeting Link */}
+                {booking.manual_meeting_url && (
+                  <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700/50">
+                    <div className="flex items-center gap-2 mb-2">
+                      <LinkIcon className="w-4 h-4 text-purple-400" />
+                      <span className="text-sm font-medium text-zinc-300">Manual Meeting Link</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={booking.manual_meeting_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-emerald-400 hover:text-emerald-300 text-sm truncate flex-1"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {booking.manual_meeting_url}
+                      </a>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          copyMeetingLink(booking.id, booking.manual_meeting_url!)
+                        }}
+                        className="p-2 hover:bg-zinc-700 rounded-lg transition-colors"
+                        title="Copy link"
+                      >
+                        {copiedId === booking.id ? (
+                          <Check className="w-4 h-4 text-emerald-400" />
+                        ) : (
+                          <Copy className="w-4 h-4 text-zinc-400" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -771,6 +833,18 @@ function BookingDetailsDrawer({ booking, isOpen, onClose, isAdmin, companyId, on
           {booking.meeting_url && (
             <a
               href={booking.meeting_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-primary flex items-center justify-center gap-2 flex-1"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Video className="w-4 h-4" />
+              Join Zoom
+            </a>
+          )}
+          {booking.manual_meeting_url && (
+            <a
+              href={booking.manual_meeting_url}
               target="_blank"
               rel="noopener noreferrer"
               className="btn-primary flex items-center justify-center gap-2 flex-1"

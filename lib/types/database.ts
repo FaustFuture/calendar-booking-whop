@@ -51,7 +51,8 @@ export interface Booking {
   title: string
   description?: string
   status: BookingStatus
-  meeting_url?: string
+  meeting_url?: string // Generated Zoom/Google Meet link
+  manual_meeting_url?: string // Manual meeting link (e.g., custom Google Meet, other platforms)
   calendar_event_id?: string // Google Calendar event ID for syncing deletions
   notes?: string
   guest_name?: string

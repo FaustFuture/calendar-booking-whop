@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
       !body.title ||
       !body.startTime ||
       !body.endTime ||
-      !body.attendeeEmails
+      !Array.isArray(body.attendeeEmails)
     ) {
       return NextResponse.json(
         { error: 'Missing required fields' },

@@ -116,6 +116,7 @@ export async function POST(request: Request) {
 
     // Get slot or pattern details to check if meeting generation is needed
     let meetingUrl = body.meeting_url || null
+    // let manualMeetingUrl = body.manual_meeting_url || null
     let meetingData = null
     let startTime = null
     let endTime = null
@@ -443,6 +444,7 @@ export async function POST(request: Request) {
       company_id: companyId, // Use company_id instead of admin_id
       status: bookingData.status || 'upcoming',
       meeting_url: meetingUrl,
+      // manual_meeting_url: manualMeetingUrl,
       // Set title and description from pattern/slot if not provided
       title: bookingData.title || meetingData?.title || 'Booking',
       description: bookingData.description || meetingData?.description,
