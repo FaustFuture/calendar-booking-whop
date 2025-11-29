@@ -334,7 +334,7 @@ export default function CreateBookingDrawer({
     <Drawer open={isOpen} onClose={onClose} width="lg">
       <DrawerHeader title="Create Booking" onClose={onClose} />
 
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col flex-1">
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col h-full">
         <DrawerContent>
           <div className="space-y-4">
             {/* Member Selection */}
@@ -614,7 +614,7 @@ export default function CreateBookingDrawer({
           )}
 
           {/* Notes */}
-          <div>
+          <div className='mb-20'>
             <label className="block text-sm font-medium text-zinc-300 mb-2">
               Internal Notes
             </label>
