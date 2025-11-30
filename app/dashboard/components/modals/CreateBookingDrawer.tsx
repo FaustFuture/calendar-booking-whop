@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -18,23 +18,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { getUserTimezone } from '@/lib/utils/timezone'
+import { TimezoneSelect } from '../shared/TimezoneSelect'
 
 const LINK_TYPES = ['zoom', 'manual'] as const
 type LinkPreference = (typeof LINK_TYPES)[number]
-
-const FALLBACK_TIMEZONES = [
-  'UTC',
-  'America/New_York',
-  'America/Los_Angeles',
-  'America/Chicago',
-  'America/Denver',
-  'Europe/London',
-  'Europe/Paris',
-  'Europe/Berlin',
-  'Asia/Tokyo',
-  'Asia/Singapore',
-  'Australia/Sydney',
-]
 
 const DEFAULT_MEETING_DURATION_MINUTES = 60
 
@@ -93,13 +80,6 @@ export default function CreateBookingDrawer({
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
 
-  const timezoneOptions = useMemo(() => {
-    if (typeof Intl !== 'undefined' && typeof (Intl as any).supportedValuesOf === 'function') {
-      return (Intl as any).supportedValuesOf('timeZone') as string[]
-    }
-    return FALLBACK_TIMEZONES
-  }, [])
-
   const {
     register,
     handleSubmit,
@@ -131,14 +111,63 @@ export default function CreateBookingDrawer({
     // Create a date string in YYYY-MM-DD format
     const dateStr = format(date, 'yyyy-MM-dd')
     // Combine date and time: "2025-01-19T10:00"
-    const localDateTimeStr = `${dateStr}T${time}`
+    const localDateTimeStr = `${dateStr}T${time}:00`
     
-    // Parse this as a date in the selected timezone
-    // This interprets "2025-01-19T10:00" as 10:00 AM in the selected timezone
-    const zonedDate = fromZonedTime(localDateTimeStr, timezone)
-    
-    // Return as ISO string (UTC)
-    return zonedDate.toISOString()
+    // Create a Date object that represents this time in the selected timezone
+    // We use a formatter to get the UTC equivalent of this local time
+    try {
+      // Parse the date-time string as if it's in the target timezone
+      // Split into components
+      const [datePart, timePart] = localDateTimeStr.split('T')
+      const [year, month, day] = datePart.split('-').map(Number)
+      const [hour, minute] = timePart.split(':').map(Number)
+      
+      // Create a date string that will be interpreted in the target timezone
+      // Use Intl.DateTimeFormat to convert from target timezone to UTC
+      const dateInTargetTz = new Date(year, month - 1, day, hour, minute, 0)
+      
+      // Get the offset for the target timezone at this date
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: timezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      })
+      
+      // Format the date in the target timezone to get its components
+      const parts = formatter.formatToParts(dateInTargetTz)
+      const tzYear = parts.find(p => p.type === 'year')?.value
+      const tzMonth = parts.find(p => p.type === 'month')?.value
+      const tzDay = parts.find(p => p.type === 'day')?.value
+      const tzHour = parts.find(p => p.type === 'hour')?.value
+      const tzMinute = parts.find(p => p.type === 'minute')?.value
+      
+      // Calculate the offset between what we want and what we got
+      const wantedDate = new Date(year, month - 1, day, hour, minute, 0)
+      const gotDate = new Date(
+        parseInt(tzYear!),
+        parseInt(tzMonth!) - 1,
+        parseInt(tzDay!),
+        parseInt(tzHour!),
+        parseInt(tzMinute!),
+        0
+      )
+      
+      const offset = wantedDate.getTime() - gotDate.getTime()
+      
+      // Apply the offset to get the correct UTC time
+      const utcDate = new Date(dateInTargetTz.getTime() - offset)
+      
+      return utcDate.toISOString()
+    } catch (error) {
+      console.error('Error converting timezone:', error)
+      // Fallback: treat as UTC
+      return new Date(`${localDateTimeStr}Z`).toISOString()
+    }
   }
 
   const resetDateTimeFields = () => {
@@ -485,28 +514,17 @@ export default function CreateBookingDrawer({
               <label className="block text-sm font-medium text-zinc-300 mb-2">
                 Timezone *
               </label>
-              <Select
+              <TimezoneSelect
                 value={selectedTimezone}
                 onValueChange={(value) =>
                   setValue('timezone', value, { shouldValidate: true, shouldDirty: true })
                 }
-              >
-                <SelectTrigger className="w-full bg-zinc-800 border-zinc-700 text-white">
-                  <SelectValue placeholder="Select timezone" />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-700 text-white max-h-72 z-[1050]">
-                  {timezoneOptions.map((tz) => (
-                    <SelectItem key={tz} value={tz} className="text-white">
-                      {tz}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
               {errors.timezone && (
                 <p className="text-red-400 text-sm mt-1">{errors.timezone.message}</p>
               )}
               <p className="text-xs text-zinc-500 mt-2">
-                Calendar invites and reminders will use this timezone.
+                The booking will be scheduled in this timezone.
               </p>
             </div>
           </div>
