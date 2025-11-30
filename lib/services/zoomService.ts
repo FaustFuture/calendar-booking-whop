@@ -233,17 +233,17 @@ export class ZoomService {
           use_pmi: false,
           approval_type: 0, // Automatically approve
           audio: 'both', // Both telephony and VoIP
-          auto_recording: details.enableRecording !== false ? 'cloud' : 'none', // Auto-record to cloud (enabled by default)
+          // IMPORTANT: Changed to 'local' recording instead of 'cloud'
+          // Local recording allows ANY participant to record on their device without host permission
+          // Cloud recording requires host/co-host to be present
+          auto_recording: details.enableRecording !== false ? 'local' : 'none',
           waiting_room: false, // Disable waiting room so participants can join directly
           meeting_authentication: false,
-          // Enable recording without host present
-          // NOTE: This requires "Allow cloud recording without host" to be enabled in Zoom account settings
-          // Go to: Zoom Admin Dashboard > Account Management > Account Settings > Recording > Cloud Recording
-          // Enable: "Allow cloud recording without host"
-          recording_authentication_option: false, // Disable recording authentication
+          // Enable local recording for all participants (workaround for recording without host)
+          // Participants can record the meeting locally on their device
+          local_recording: true, // Allow local recording by any participant
           allow_multiple_devices: true, // Allow participants to join from multiple devices
-          // Alternative: Enable local recording as well (participants can record locally)
-          local_recording: true, // Allow local recording by participants
+          alternative_hosts_email_notification: false, // Don't send email notifications
         },
       }
 
