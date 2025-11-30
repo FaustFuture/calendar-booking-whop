@@ -20,6 +20,7 @@ interface GenerateMeetingRequest {
   attendeeEmails: string[]
   timezone?: string
   companyId: string
+  alternativeHostEmail?: string // Email of the current user to add as alternative host
 }
 
 export async function POST(request: NextRequest) {
@@ -65,6 +66,12 @@ export async function POST(request: NextRequest) {
     // Zoom uses Server-to-Server OAuth - no user connection check needed
     // Google Meet uses user OAuth connections - check if connected
 
+    // Prepare alternative hosts array (for Zoom)
+    const alternativeHosts: string[] = []
+    if (body.alternativeHostEmail) {
+      alternativeHosts.push(body.alternativeHostEmail)
+    }
+
     // Generate meeting link
     const result = await meetingService.generateMeetingLink(whopUser.userId, body.provider, {
       title: body.title,
@@ -73,6 +80,7 @@ export async function POST(request: NextRequest) {
       endTime: body.endTime,
       attendees: body.attendeeEmails,
       timezone: body.timezone,
+      alternativeHosts: alternativeHosts.length > 0 ? alternativeHosts : undefined,
     })
 
     return NextResponse.json({

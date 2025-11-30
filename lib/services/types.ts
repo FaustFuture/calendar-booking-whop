@@ -8,6 +8,7 @@ export interface MeetingDetails {
   attendees: string[] // Email addresses
   timezone?: string
   enableRecording?: boolean // Enable auto-recording
+  alternativeHosts?: string[] // Email addresses of alternative hosts (for Zoom)
 }
 
 export interface MeetingResult {

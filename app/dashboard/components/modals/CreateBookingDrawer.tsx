@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { getUserTimezone, getTimezoneLabel } from '@/lib/utils/timezone'
+import { useWhopUser } from '@/lib/context/WhopUserContext'
 
 const LINK_TYPES = ['zoom', 'manual'] as const
 type LinkPreference = (typeof LINK_TYPES)[number]
@@ -69,6 +70,7 @@ export default function CreateBookingDrawer({
   companyId,
 }: CreateBookingDrawerProps) {
   const { showError, showSuccess } = useToast()
+  const { user } = useWhopUser()
   const [loading, setLoading] = useState(false)
   const [membersLoading, setMembersLoading] = useState(false)
   const [generatingZoomLink, setGeneratingZoomLink] = useState(false)
@@ -78,6 +80,8 @@ export default function CreateBookingDrawer({
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
   
+  console.log(user)
+
   // Automatically detect user's timezone
   const userTimezone = getUserTimezone()
 
@@ -306,6 +310,8 @@ export default function CreateBookingDrawer({
           attendeeEmails,
           timezone: userTimezone,
           companyId,
+          // Add current user's email as alternative host so they can start recording
+          alternativeHostEmail: user?.email || undefined,
         }),
       })
 

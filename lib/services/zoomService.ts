@@ -215,6 +215,11 @@ export class ZoomService {
         (endTime.getTime() - startTime.getTime()) / (1000 * 60)
       )
 
+      // Build alternative hosts string (comma-separated email addresses)
+      const alternativeHostsString = details.alternativeHosts && details.alternativeHosts.length > 0
+        ? details.alternativeHosts.join(',')
+        : undefined
+
       // Format meeting request for Zoom API
       const meetingRequest = {
         topic: details.title,
@@ -223,6 +228,8 @@ export class ZoomService {
         duration: durationMinutes,
         timezone: details.timezone || 'UTC',
         agenda: details.description || '',
+        // Add alternative hosts at the meeting level (not in settings)
+        ...(alternativeHostsString && { alternative_hosts: alternativeHostsString }),
         settings: {
           host_video: true,
           participant_video: true,
@@ -243,7 +250,7 @@ export class ZoomService {
           // Participants can record the meeting locally on their device
           local_recording: true, // Allow local recording by any participant
           allow_multiple_devices: true, // Allow participants to join from multiple devices
-          alternative_hosts_email_notification: false, // Don't send email notifications
+          alternative_hosts_email_notification: false, // Don't send email notifications to alternative hosts
         },
       }
 
