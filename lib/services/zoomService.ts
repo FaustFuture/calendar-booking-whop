@@ -235,8 +235,10 @@ export class ZoomService {
           auto_recording: details.enableRecording !== false ? 'cloud' : 'none', // Auto-record to cloud (enabled by default)
           waiting_room: false, // Disable waiting room so participants can join directly
           meeting_authentication: false,
-          // Allow recording to start automatically even if host hasn't joined
-          // This works with join_before_host: true and auto_recording: 'cloud'
+          // Enable recording without host present
+          // This allows automatic cloud recording to start when participants join, even if host hasn't joined yet
+          recording_authentication_option: false, // Disable recording authentication
+          allow_multiple_devices: true, // Allow participants to join from multiple devices
         },
       }
 
