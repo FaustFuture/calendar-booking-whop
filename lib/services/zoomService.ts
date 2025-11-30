@@ -227,6 +227,7 @@ export class ZoomService {
           host_video: true,
           participant_video: true,
           join_before_host: true, // Allow participants to join before host
+          jbh_time: 0, // Allow join before host at any time (0 = no restriction)
           mute_upon_entry: true,
           watermark: false,
           use_pmi: false,
@@ -236,9 +237,13 @@ export class ZoomService {
           waiting_room: false, // Disable waiting room so participants can join directly
           meeting_authentication: false,
           // Enable recording without host present
-          // This allows automatic cloud recording to start when participants join, even if host hasn't joined yet
+          // NOTE: This requires "Allow cloud recording without host" to be enabled in Zoom account settings
+          // Go to: Zoom Admin Dashboard > Account Management > Account Settings > Recording > Cloud Recording
+          // Enable: "Allow cloud recording without host"
           recording_authentication_option: false, // Disable recording authentication
           allow_multiple_devices: true, // Allow participants to join from multiple devices
+          // Alternative: Enable local recording as well (participants can record locally)
+          local_recording: true, // Allow local recording by participants
         },
       }
 
