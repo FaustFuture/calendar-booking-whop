@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { format } from 'date-fns'
+import { toZonedTime, fromZonedTime } from 'date-fns-tz'
 import { Video, Link as LinkIcon, Loader2 } from 'lucide-react'
 import { Drawer, DrawerHeader, DrawerContent, DrawerFooter } from '../shared/Drawer'
 import { useToast } from '@/lib/context/ToastContext'
@@ -125,8 +126,20 @@ export default function CreateBookingDrawer({
   const isZoomSelected = resolvedLinkType === 'zoom'
   const isManualSelected = resolvedLinkType === 'manual'
 
-  const buildDateTimeValue = (date: Date, time: string) =>
-    `${format(date, 'yyyy-MM-dd')}T${time}`
+  // Build datetime value in the selected timezone and convert to ISO string
+  const buildDateTimeValue = (date: Date, time: string, timezone: string) => {
+    // Create a date string in YYYY-MM-DD format
+    const dateStr = format(date, 'yyyy-MM-dd')
+    // Combine date and time: "2025-01-19T10:00"
+    const localDateTimeStr = `${dateStr}T${time}`
+    
+    // Parse this as a date in the selected timezone
+    // This interprets "2025-01-19T10:00" as 10:00 AM in the selected timezone
+    const zonedDate = fromZonedTime(localDateTimeStr, timezone)
+    
+    // Return as ISO string (UTC)
+    return zonedDate.toISOString()
+  }
 
   const resetDateTimeFields = () => {
     setStartDate(null)
@@ -142,16 +155,20 @@ export default function CreateBookingDrawer({
     if (isOpen) {
       loadMembers()
 
+      const currentTimezone = getValues('timezone') || getUserTimezone()
       const currentStart = getValues('booking_start_time')
       let startReference: Date
 
       if (currentStart) {
-        startReference = new Date(currentStart)
+        // Convert from ISO to the selected timezone for display
+        startReference = toZonedTime(new Date(currentStart), currentTimezone)
       } else {
+        // Get current time in the selected timezone
         const now = new Date()
-        now.setMinutes(now.getMinutes() + (15 - (now.getMinutes() % 15 || 15)))
-        startReference = now
-        setValue('booking_start_time', buildDateTimeValue(startReference, format(startReference, 'HH:mm')))
+        const nowInZone = toZonedTime(now, currentTimezone)
+        nowInZone.setMinutes(nowInZone.getMinutes() + (15 - (nowInZone.getMinutes() % 15 || 15)))
+        startReference = nowInZone
+        setValue('booking_start_time', buildDateTimeValue(startReference, format(startReference, 'HH:mm'), currentTimezone))
       }
 
       setStartDate(startReference)
@@ -161,10 +178,11 @@ export default function CreateBookingDrawer({
       let endReference: Date
 
       if (currentEnd) {
-        endReference = new Date(currentEnd)
+        // Convert from ISO to the selected timezone for display
+        endReference = toZonedTime(new Date(currentEnd), currentTimezone)
       } else {
         endReference = new Date(startReference.getTime() + DEFAULT_MEETING_DURATION_MINUTES * 60 * 1000)
-        setValue('booking_end_time', buildDateTimeValue(endReference, format(endReference, 'HH:mm')))
+        setValue('booking_end_time', buildDateTimeValue(endReference, format(endReference, 'HH:mm'), currentTimezone))
       }
 
       setEndDate(endReference)
@@ -177,41 +195,43 @@ export default function CreateBookingDrawer({
 
   // Sync start datetime with form state
   useEffect(() => {
-    if (startDate && startTime) {
-      setValue('booking_start_time', buildDateTimeValue(startDate, startTime), {
+    if (startDate && startTime && selectedTimezone) {
+      setValue('booking_start_time', buildDateTimeValue(startDate, startTime, selectedTimezone), {
         shouldValidate: true,
         shouldDirty: true,
       })
     }
-  }, [startDate, startTime, setValue])
+  }, [startDate, startTime, selectedTimezone, setValue])
 
   // Sync end datetime with form state
   useEffect(() => {
-    if (endDate && endTime) {
-      setValue('booking_end_time', buildDateTimeValue(endDate, endTime), {
+    if (endDate && endTime && selectedTimezone) {
+      setValue('booking_end_time', buildDateTimeValue(endDate, endTime, selectedTimezone), {
         shouldValidate: true,
         shouldDirty: true,
       })
     }
-  }, [endDate, endTime, setValue])
+  }, [endDate, endTime, selectedTimezone, setValue])
 
   // Ensure end time always stays after start time
   useEffect(() => {
-    if (startDate && startTime && endDate && endTime) {
-      const start = new Date(buildDateTimeValue(startDate, startTime))
-      const end = new Date(buildDateTimeValue(endDate, endTime))
+    if (startDate && startTime && endDate && endTime && selectedTimezone) {
+      const start = new Date(buildDateTimeValue(startDate, startTime, selectedTimezone))
+      const end = new Date(buildDateTimeValue(endDate, endTime, selectedTimezone))
       if (end <= start) {
         const adjusted = new Date(start.getTime() + DEFAULT_MEETING_DURATION_MINUTES * 60 * 1000)
-        const adjustedTime = format(adjusted, 'HH:mm')
-        setEndDate(adjusted)
+        // Convert back to the selected timezone to get the correct time display
+        const adjustedInZone = toZonedTime(adjusted, selectedTimezone)
+        const adjustedTime = format(adjustedInZone, 'HH:mm')
+        setEndDate(adjustedInZone)
         setEndTime(adjustedTime)
-        setValue('booking_end_time', buildDateTimeValue(adjusted, adjustedTime), {
+        setValue('booking_end_time', buildDateTimeValue(adjustedInZone, adjustedTime, selectedTimezone), {
           shouldValidate: true,
           shouldDirty: true,
         })
       }
     }
-  }, [startDate, startTime, endDate, endTime, setValue])
+  }, [startDate, startTime, endDate, endTime, selectedTimezone, setValue])
 
   async function loadMembers() {
     setMembersLoading(true)
