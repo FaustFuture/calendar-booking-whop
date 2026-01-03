@@ -79,8 +79,6 @@ export default function CreateBookingDrawer({
   const [endDate, setEndDate] = useState<Date | null>(null)
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
-  
-  console.log(user)
 
   // Automatically detect user's timezone
   const userTimezone = getUserTimezone()
