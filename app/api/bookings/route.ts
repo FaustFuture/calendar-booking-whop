@@ -96,11 +96,9 @@ export async function POST(request: Request) {
 
     // Optional: Verify Whop user if authenticated (guests allowed for bookings)
     let whopUser = null
-    let isAuthenticatedBooking = false
 
     // If member_id is provided in the request, this is an authenticated booking
     if (body.member_id) {
-      isAuthenticatedBooking = true
       try {
         whopUser = await requireWhopAuth(companyId, true)
 
@@ -116,7 +114,8 @@ export async function POST(request: Request) {
 
     // Get slot or pattern details to check if meeting generation is needed
     let meetingUrl = body.meeting_url || null
-    let meetingData = null
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let meetingData: any = null
     let startTime = null
     let endTime = null
     
@@ -124,7 +123,7 @@ export async function POST(request: Request) {
     // We'll determine this when we need to generate a meeting link
     let adminIdForMeeting: string | null = null
 
-    // Check if this is a slot-based or pattern-based booking
+    // Check if this is a slot-based, pattern-based, or custom booking
     if (body.slot_id) {
       const { data: slotData } = await supabase
         .from('availability_slots')
@@ -143,6 +142,10 @@ export async function POST(request: Request) {
         .single()
 
       meetingData = patternData
+      startTime = body.booking_start_time
+      endTime = body.booking_end_time
+    } else {
+      // Custom booking (not from slot or pattern)
       startTime = body.booking_start_time
       endTime = body.booking_end_time
     }
@@ -435,8 +438,19 @@ export async function POST(request: Request) {
       }
     }
 
-    // Extract companyId from body (used for auth only, not a DB column)
-    const { companyId: _, ...bookingData } = body
+    // Extract companyId and recurrence fields from body (used for processing only)
+    const {
+      companyId: _,
+      is_recurring: bodyIsRecurring,
+      recurrence_type: bodyRecurrenceType,
+      recurrence_interval: bodyRecurrenceInterval,
+      recurrence_days_of_week: bodyRecurrenceDaysOfWeek,
+      recurrence_day_of_month: bodyRecurrenceDayOfMonth,
+      recurrence_end_type: bodyRecurrenceEndType,
+      recurrence_count: bodyRecurrenceCount,
+      recurrence_end_date: bodyRecurrenceEndDate,
+      ...bookingData
+    } = body
 
     const insertData = {
       ...bookingData,
@@ -452,17 +466,28 @@ export async function POST(request: Request) {
 
     console.log('📝 Booking data before database insert:', insertData)
 
-    // Check if this is a recurring pattern
-    if (meetingData?.is_recurring && meetingData.recurrence_type && startTime && endTime) {
+    // Determine if this is a recurring booking
+    // Either from pattern (meetingData.is_recurring) OR from custom booking (bodyIsRecurring)
+    const isRecurring = meetingData?.is_recurring || bodyIsRecurring
+    const recurrenceType = meetingData?.recurrence_type || bodyRecurrenceType
+    const recurrenceInterval = meetingData?.recurrence_interval || bodyRecurrenceInterval || 1
+    const recurrenceDaysOfWeek = meetingData?.recurrence_days_of_week || bodyRecurrenceDaysOfWeek
+    const recurrenceDayOfMonth = meetingData?.recurrence_day_of_month || bodyRecurrenceDayOfMonth
+    const recurrenceEndType = meetingData?.recurrence_end_type || bodyRecurrenceEndType
+    const recurrenceCount = meetingData?.recurrence_count || bodyRecurrenceCount
+    const recurrenceEndDate = meetingData?.recurrence_end_date || bodyRecurrenceEndDate
+
+    // Check if this is a recurring booking (from pattern or custom)
+    if (isRecurring && recurrenceType && startTime && endTime) {
       console.log('🔁 Creating recurring bookings...')
       console.log('Recurrence config:', {
-        type: meetingData.recurrence_type,
-        interval: meetingData.recurrence_interval,
-        daysOfWeek: meetingData.recurrence_days_of_week,
-        dayOfMonth: meetingData.recurrence_day_of_month,
-        endType: meetingData.recurrence_end_type,
-        count: meetingData.recurrence_count,
-        endDate: meetingData.recurrence_end_date,
+        type: recurrenceType,
+        interval: recurrenceInterval,
+        daysOfWeek: recurrenceDaysOfWeek,
+        dayOfMonth: recurrenceDayOfMonth,
+        endType: recurrenceEndType,
+        count: recurrenceCount,
+        endDate: recurrenceEndDate,
       })
 
       // Generate all occurrence times
@@ -470,13 +495,13 @@ export async function POST(request: Request) {
         startTime,
         endTime,
         {
-          type: meetingData.recurrence_type,
-          interval: meetingData.recurrence_interval || 1,
-          daysOfWeek: meetingData.recurrence_days_of_week,
-          dayOfMonth: meetingData.recurrence_day_of_month,
-          endType: meetingData.recurrence_end_type,
-          count: meetingData.recurrence_count,
-          endDate: meetingData.recurrence_end_date,
+          type: recurrenceType,
+          interval: recurrenceInterval,
+          daysOfWeek: recurrenceDaysOfWeek,
+          dayOfMonth: recurrenceDayOfMonth,
+          endType: recurrenceEndType,
+          count: recurrenceCount,
+          endDate: recurrenceEndDate,
         }
       )
 
@@ -527,7 +552,6 @@ export async function POST(request: Request) {
 
       // Create booking records for all occurrences
       const bookingsToInsert = []
-      const calendarEventPromises = []
 
       for (let i = 0; i < occurrences.length; i++) {
         const occurrence = occurrences[i]
@@ -542,7 +566,7 @@ export async function POST(request: Request) {
             console.log(`📅 Creating calendar event for occurrence ${i + 1}/${occurrences.length}`)
 
             // Generate Zoom meeting for this occurrence if needed
-            if (meetingData.meeting_type === 'zoom' && meetingData.meeting_config?.requiresGeneration) {
+            if (meetingData?.meeting_type === 'zoom' && meetingData?.meeting_config?.requiresGeneration) {
               console.log(`🎥 Generating Zoom meeting for occurrence ${i + 1}/${occurrences.length}`)
               try {
                 // Collect attendee emails for Zoom
@@ -576,7 +600,7 @@ export async function POST(request: Request) {
                     endTime: occurrenceEndTime,
                     attendees: zoomAttendees,
                     timezone: insertData.timezone,
-                    enableRecording: meetingData.meeting_config?.enableRecording ?? true,
+                    enableRecording: meetingData?.meeting_config?.enableRecording ?? true,
                   }
                 )
 
@@ -592,16 +616,19 @@ export async function POST(request: Request) {
             let eventDescription = insertData.description || `Booking with ${insertData.customer_name || 'Customer'}`
             let eventLocation = ''
 
-            if (meetingData.meeting_type === 'zoom') {
+            if (meetingData?.meeting_type === 'zoom') {
               eventDescription += `\n\n🎥 Zoom Meeting\nJoin URL: ${occurrenceMeetingUrl || 'To be provided'}`
-            } else if (meetingData.meeting_type === 'manual_link') {
+            } else if (meetingData?.meeting_type === 'manual_link') {
               eventDescription += `\n\n🔗 Meeting Link: ${meetingUrl || 'To be provided'}`
-            } else if (meetingData.meeting_type === 'location') {
-              const locationAddress = meetingData.meeting_config?.manualValue || 'Location to be determined'
+            } else if (meetingData?.meeting_type === 'location') {
+              const locationAddress = meetingData?.meeting_config?.manualValue || 'Location to be determined'
               eventLocation = locationAddress
               eventDescription += `\n\n📍 In-Person Meeting\nLocation: ${locationAddress}`
-            } else if (meetingData.meeting_type === 'google_meet') {
+            } else if (meetingData?.meeting_type === 'google_meet') {
               eventDescription += `\n\n📹 Google Meet (link will be in the calendar event)`
+            } else if (meetingUrl) {
+              // For custom bookings with a meeting URL
+              eventDescription += `\n\n🔗 Meeting Link: ${meetingUrl}`
             }
 
             // Add customer details
@@ -615,7 +642,7 @@ export async function POST(request: Request) {
 
             // For Google Meet, create conference data to generate a unique Meet link for each occurrence
             let conferenceData = null
-            if (meetingData.meeting_type === 'google_meet') {
+            if (meetingData?.meeting_type === 'google_meet') {
               conferenceData = {
                 createRequest: {
                   requestId: `meet-${Date.now()}-${Math.random().toString(36).substring(7)}-${i}`,

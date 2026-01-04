@@ -19,6 +19,9 @@ import {
 } from '@/components/ui/select'
 import { getUserTimezone, getTimezoneLabel } from '@/lib/utils/timezone'
 import { useWhopUser } from '@/lib/context/WhopUserContext'
+import RecurrenceConfigPanel from '../shared/RecurrenceConfigPanel'
+import { RecurrenceType, RecurrenceEndType } from '@/lib/types/database'
+import { validateRecurrenceConfig } from '@/lib/utils/recurrence'
 
 const LINK_TYPES = ['zoom', 'manual'] as const
 type LinkPreference = (typeof LINK_TYPES)[number]
@@ -79,6 +82,17 @@ export default function CreateBookingDrawer({
   const [endDate, setEndDate] = useState<Date | null>(null)
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
+  const [recurrenceConfig, setRecurrenceConfig] = useState({
+    isRecurring: false,
+    type: 'weekly' as RecurrenceType,
+    interval: 1,
+    daysOfWeek: [] as string[],
+    dayOfMonth: 1,
+    endType: 'count' as RecurrenceEndType,
+    count: 10,
+    endDate: '',
+  })
+  const [recurrenceError, setRecurrenceError] = useState<string | undefined>()
 
   // Automatically detect user's timezone
   const userTimezone = getUserTimezone()
@@ -175,6 +189,17 @@ export default function CreateBookingDrawer({
     setEndTime('')
     setValue('booking_start_time', '', { shouldDirty: true })
     setValue('booking_end_time', '', { shouldDirty: true })
+    setRecurrenceConfig({
+      isRecurring: false,
+      type: 'weekly',
+      interval: 1,
+      daysOfWeek: [],
+      dayOfMonth: 1,
+      endType: 'count',
+      count: 10,
+      endDate: '',
+    })
+    setRecurrenceError(undefined)
   }
 
   // Load members and seed date/time defaults when modal opens
@@ -238,6 +263,7 @@ export default function CreateBookingDrawer({
       })
     }
   }, [endDate, endTime, setValue])
+
 
   // Ensure end time always stays after start time
   useEffect(() => {
@@ -330,6 +356,7 @@ export default function CreateBookingDrawer({
 
   async function onSubmit(data: BookingFormData) {
     setLoading(true)
+    setRecurrenceError(undefined)
 
     if (!data.meeting_url) {
       showError('Missing Meeting Link', 'Please provide a meeting link.')
@@ -337,11 +364,52 @@ export default function CreateBookingDrawer({
       return
     }
 
+    // Validate recurrence config if recurring is enabled
+    if (recurrenceConfig.isRecurring) {
+      const validationError = validateRecurrenceConfig({
+        type: recurrenceConfig.type,
+        interval: recurrenceConfig.interval,
+        daysOfWeek: recurrenceConfig.daysOfWeek,
+        dayOfMonth: recurrenceConfig.dayOfMonth,
+        endType: recurrenceConfig.endType,
+        count: recurrenceConfig.count,
+        endDate: recurrenceConfig.endDate,
+      })
+
+      if (validationError) {
+        setRecurrenceError(validationError)
+        showError('Invalid Recurrence', validationError)
+        setLoading(false)
+        return
+      }
+    }
+
     const { link_type: _linkType, ...rest } = data
+
+    // For recurring meetings, ensure booking_end_time reflects the meeting duration
+    // (same day as start), not the recurrence end date
+    let bookingEndTime = data.booking_end_time
+    if (recurrenceConfig.isRecurring && startDate && endTime) {
+      // Use start date + end time to calculate proper meeting end time
+      bookingEndTime = buildDateTimeValue(startDate, endTime)
+    }
+
     const payload = {
       ...rest,
+      booking_end_time: bookingEndTime,
       meeting_url: data.meeting_url,
-      timezone: userTimezone, // Add user's timezone to the payload
+      timezone: userTimezone,
+      // Include recurrence data if enabled
+      ...(recurrenceConfig.isRecurring && {
+        is_recurring: true,
+        recurrence_type: recurrenceConfig.type,
+        recurrence_interval: recurrenceConfig.interval,
+        recurrence_days_of_week: recurrenceConfig.daysOfWeek,
+        recurrence_day_of_month: recurrenceConfig.dayOfMonth,
+        recurrence_end_type: recurrenceConfig.endType,
+        recurrence_count: recurrenceConfig.count,
+        recurrence_end_date: recurrenceConfig.endDate || undefined,
+      }),
     }
 
     try {
@@ -362,10 +430,17 @@ export default function CreateBookingDrawer({
         throw new Error(errorData.error || 'Failed to create booking')
       }
 
+      const result = await response.json()
+      const totalBookings = result.total_bookings || 1
+
       reset()
       resetDateTimeFields()
       onSuccess()
       onClose()
+
+      if (totalBookings > 1) {
+        showSuccess('Recurring Bookings Created', `Successfully created ${totalBookings} recurring bookings.`)
+      }
     } catch (error) {
       console.error('Booking failed:', error)
       showError('Booking Failed', error instanceof Error ? error.message : 'Failed to create booking. Please try again.')
@@ -478,17 +553,6 @@ export default function CreateBookingDrawer({
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium text-zinc-300 mb-2">
-                    End Date *
-                  </label>
-                  <DatePicker
-                    date={endDate}
-                    onDateChange={(date) => setEndDate(date ?? null)}
-                    placeholder="Select end date"
-                    minDate={startDate ?? undefined}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-300 mb-2">
                     End Time *
                   </label>
                   <Select value={endTime} onValueChange={setEndTime}>
@@ -520,6 +584,13 @@ export default function CreateBookingDrawer({
               </p>
             </div>
           </div>
+
+          {/* Recurring Meeting Configuration */}
+          <RecurrenceConfigPanel
+            config={recurrenceConfig}
+            onChange={setRecurrenceConfig}
+            error={recurrenceError}
+          />
 
           {/* Link Preference */}
           <div className="space-y-2 ">

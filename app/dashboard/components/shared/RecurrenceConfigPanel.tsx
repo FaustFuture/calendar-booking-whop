@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { RepeatIcon, Calendar } from 'lucide-react'
+import { format } from 'date-fns'
 import { RecurrenceType, RecurrenceEndType } from '@/lib/types/database'
 import { getRecurrenceDescription, validateRecurrenceConfig } from '@/lib/utils/recurrence'
+import { DatePicker } from '@/components/ui/date-picker'
 
 interface RecurrenceConfig {
   isRecurring: boolean
@@ -195,38 +197,28 @@ export default function RecurrenceConfigPanel({ config, onChange, error }: Recur
             </div>
           )}
 
-          {/* End Type */}
-          <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-2">
-              End Repeat
+          {/* Use Count Checkbox */}
+          <div className="space-y-3">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={config.endType === 'count'}
+                onChange={(e) => updateConfig({ endType: e.target.checked ? 'count' : 'date' })}
+                className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0 cursor-pointer"
+              />
+              <span className="text-sm text-zinc-300">
+                Specify number of occurrences
+              </span>
             </label>
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              <button
-                type="button"
-                onClick={() => updateConfig({ endType: 'count' })}
-                className={`p-3 rounded-lg border text-sm font-medium transition-all ${
-                  config.endType === 'count'
-                    ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400'
-                    : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-emerald-500'
-                }`}
-              >
-                After # times
-              </button>
-              <button
-                type="button"
-                onClick={() => updateConfig({ endType: 'date' })}
-                className={`p-3 rounded-lg border text-sm font-medium transition-all ${
-                  config.endType === 'date'
-                    ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400'
-                    : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-emerald-500'
-                }`}
-              >
-                On date
-              </button>
-            </div>
+            <p className="text-xs text-zinc-500 ml-7">
+              {config.endType === 'count'
+                ? 'Meetings will repeat for the specified number of times'
+                : 'Meetings will repeat until the specified end date'}
+            </p>
 
+            {/* Number of Occurrences Input - only shown when checkbox is checked */}
             {config.endType === 'count' && (
-              <div>
+              <div className="ml-7">
                 <label className="block text-xs text-zinc-400 mb-1">
                   Number of Occurrences
                 </label>
@@ -238,20 +230,27 @@ export default function RecurrenceConfigPanel({ config, onChange, error }: Recur
                   onChange={(e) => updateConfig({ count: parseInt(e.target.value) || 1 })}
                   className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:border-emerald-500"
                 />
+                <p className="text-xs text-zinc-500 mt-1">
+                  Maximum 365 occurrences
+                </p>
               </div>
             )}
 
+            {/* End Date Input - only shown when checkbox is unchecked (date mode) */}
             {config.endType === 'date' && (
-              <div>
+              <div className="ml-7">
                 <label className="block text-xs text-zinc-400 mb-1">
-                  End Date
+                  Recurrence End Date
                 </label>
-                <input
-                  type="date"
-                  value={config.endDate}
-                  onChange={(e) => updateConfig({ endDate: e.target.value })}
-                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:border-emerald-500"
+                <DatePicker
+                  date={config.endDate ? new Date(config.endDate) : undefined}
+                  onDateChange={(date) => updateConfig({ endDate: date ? format(date, 'yyyy-MM-dd') : '' })}
+                  placeholder="Select end date"
+                  minDate={new Date()}
                 />
+                <p className="text-xs text-zinc-500 mt-1">
+                  Meetings will repeat until this date
+                </p>
               </div>
             )}
           </div>
@@ -260,7 +259,7 @@ export default function RecurrenceConfigPanel({ config, onChange, error }: Recur
           {description && (
             <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
               <div className="flex items-start gap-2">
-                <Calendar className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                <Calendar className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
                 <div>
                   <p className="text-xs font-medium text-emerald-400 mb-1">Recurrence Summary</p>
                   <p className="text-sm text-emerald-300">{description}</p>
